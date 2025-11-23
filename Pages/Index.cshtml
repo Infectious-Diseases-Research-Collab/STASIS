@@ -1,0 +1,42 @@
+﻿@page
+@model IndexModel
+@{
+    ViewData["Title"] = "Home page";
+}
+
+<div class="text-center">
+    <h1>STASIS</h1>
+    <h3>Specimen Tracking And Storage Information System</h3>
+</div>
+
+<div class="container">
+    <div class="row">
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">View Samples</h5>
+                    <p class="card-text">Search, view, and manage individual specimens.</p>
+                    <a asp-page="/Samples" class="btn btn-primary">Go to Samples</a>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">View Boxes</h5>
+                    <p class="card-text">Manage freezer box layouts and locations.</p>
+                    <a asp-page="/Boxes" class="btn btn-primary">Go to Boxes</a>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Ship Samples</h5>
+                    <p class="card-text">Create and manage outgoing sample shipments.</p>
+                    <a asp-page="/Shipments" class="btn btn-primary">Go to Shipments</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

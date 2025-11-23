@@ -1,0 +1,124 @@
+@page
+@model STASIS.Pages.SamplesModel
+@{
+    ViewData["Title"] = "Samples";
+}
+
+<style>
+    .expand-icon {
+        cursor: pointer;
+        font-weight: bold;
+    }
+</style>
+
+<h1>Samples</h1>
+
+<form asp-page="./Samples" method="get">
+    <div class="form-actions no-color">
+        <p>
+            Barcode: <input type="text" name="SearchString" value="@Model.SearchString" />
+            <input type="submit" value="Search" class="btn btn-primary" /> |
+            Study: <select asp-for="StudyId" asp-items="Model.Studies" onchange="this.form.submit()">
+                <option value="">All</option>
+            </select>
+            Sample Type: <select asp-for="SampleTypeId" asp-items="Model.SampleTypes" onchange="this.form.submit()">
+                <option value="">All</option>
+            </select>
+            <a asp-page="./Samples">Back to full List</a>
+        </p>
+    </div>
+</form>
+
+<table class="table table-hover">
+    <thead>
+        <tr>
+            <th></th>
+            <th>Barcode</th>
+            <th>Study</th>
+            <th>Sample Type</th>
+            <th>Box</th>
+            <th>Position</th>
+            <th>Status</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var item in Model.Specimens)
+        {
+            <tr class="main-row">
+                <td>
+                    <span class="expand-icon" data-bs-toggle="collapse" data-bs-target="#details-@item.SpecimenID">+</span>
+                </td>
+                <td>@item.BarcodeID</td>
+                <td>@(item.Study?.StudyCode)</td>
+                <td>@(item.SampleType?.TypeName)</td>
+                <td>@(item.Box?.BoxLabel)</td>
+                <td>@item.PositionRow-@item.PositionCol</td>
+                <td>@item.Status</td>
+            </tr>
+            <tr class="collapse" id="details-@item.SpecimenID">
+                <td colspan="7">
+                    <div class="container">
+                        <strong>Location Details:</strong>
+                        <div class="row">
+                            <div class="col-md-4">
+                                <strong>Freezer:</strong> @(item.Box?.Rack?.Freezer?.FreezerName)
+                            </div>
+                            <div class="col-md-4">
+                                <strong>Rack:</strong> @(item.Box?.Rack?.RackName)
+                            </div>
+                            <div class="col-md-4">
+                                <strong>Collection Date:</strong> @Html.DisplayFor(modelItem => item.CollectionDate)
+                            </div>
+                        </div>
+                    </div>
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+<div class="container">
+    <div class="row">
+        <div class="col-md-6">
+            Showing @Model.FirstItemIndex - @Model.LastItemIndex of @Model.TotalItems samples
+        </div>
+        <div class="col-md-6 text-right">
+            @{
+                var prevDisabled = !Model.HasPreviousPage ? "disabled" : "";
+                var nextDisabled = !Model.HasNextPage ? "disabled" : "";
+            }
+
+            <a asp-page="./Samples"
+                asp-route-searchString="@Model.SearchString"
+                asp-route-studyId="@Model.StudyId"
+                asp-route-sampleTypeId="@Model.SampleTypeId"
+               asp-route-pageIndex="@(Model.PageIndex - 1)"
+               class="btn btn-primary @prevDisabled">
+                Previous
+            </a>
+            <a asp-page="./Samples"
+                asp-route-searchString="@Model.SearchString"
+                asp-route-studyId="@Model.StudyId"
+                asp-route-sampleTypeId="@Model.SampleTypeId"
+               asp-route-pageIndex="@(Model.PageIndex + 1)"
+               class="btn btn-primary @nextDisabled">
+                Next
+            </a>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        $(document).ready(function () {
+            $('.expand-icon').on('click', function () {
+                var icon = $(this);
+                if (icon.text() === '+') {
+                    icon.text('-');
+                } else {
+                    icon.text('+');
+                }
+            });
+        });
+    </script>
+}
