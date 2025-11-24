@@ -4,6 +4,11 @@
     ViewData["Title"] = "Shipments";
 }
 
-<h1>Shipments</h1>
+<h1>@ViewData["Title"]</h1>
 
-<p>This page will display information about shipments.</p>
+<p>This section is for managing the entire workflow for sending samples out of the facility.</p>
+
+<div class="list-group">
+    <a asp-page="/Shipments/History" class="list-group-item list-group-item-action">View Shipment History</a>
+    <a asp-page="/Shipments/Create" class="list-group-item list-group-item-action">Create New Shipment</a>
+</div>

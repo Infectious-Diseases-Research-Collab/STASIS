@@ -31,6 +31,12 @@
                         <li class="nav-item">
                             <a class="nav-link text-dark" asp-area="" asp-page="/Shipments">Shipments</a>
                         </li>
+                        <li class="nav-item">
+                            <a class="nav-link text-dark" asp-area="" asp-page="/LabSetup">Lab Setup</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link text-dark" asp-area="" asp-page="/Administration">Administration</a>
+                        </li>
                     </ul>
                     <img src="~/images/idrc_logo.png" alt="IDRC Logo" style="height: 60px;" />
                 </div>
@@ -38,6 +44,7 @@
         </nav>
     </header>
     <div class="container">
+        <partial name="_BreadcrumbPartial" />
         <main role="main" class="pb-3">
             @RenderBody()
         </main>

@@ -1,0 +1,15 @@
+@page
+@model STASIS.Pages.LabSetupModel
+@{
+    ViewData["Title"] = "Lab Setup";
+}
+
+<h1>@ViewData["Title"]</h1>
+
+<p>This section allows for the management of the physical and logical storage infrastructure.</p>
+
+<div class="list-group">
+    <a asp-page="/LabSetup/Freezers" class="list-group-item list-group-item-action">Manage Freezers</a>
+    <a asp-page="/LabSetup/Racks" class="list-group-item list-group-item-action">Manage Racks</a>
+    <a asp-page="/LabSetup/BoxTypes" class="list-group-item list-group-item-action">Manage Box Definitions</a>
+</div>

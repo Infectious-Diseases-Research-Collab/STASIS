@@ -1,0 +1,34 @@
+@using Microsoft.AspNetCore.Mvc.RazorPages
+@using System.Linq
+
+@{
+    var path = ViewContext.ActionDescriptor.DisplayName;
+    // Exclude the root page "/" from having a breadcrumb trail.
+    if (string.IsNullOrEmpty(path) || path == "/Index")
+    {
+        return;
+    }
+
+    var segments = path.Split(new[] { '/' }, StringSplitOptions.RemoveEmptyEntries);
+}
+
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a asp-page="/Index">Home</a></li>
+        @for (int i = 0; i < segments.Length; i++)
+        {
+            var segment = segments[i].Replace("_", " ");
+            var isLast = i == segments.Length - 1;
+
+            if (isLast)
+            {
+                <li class="breadcrumb-item active" aria-current="page">@segment</li>
+            }
+            else
+            {
+                var link = "/" + string.Join("/", segments.Take(i + 1));
+                <li class="breadcrumb-item"><a href="@link">@segment</a></li>
+            }
+        }
+    </ol>
+</nav>

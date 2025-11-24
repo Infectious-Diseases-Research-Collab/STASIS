@@ -4,6 +4,13 @@
     ViewData["Title"] = "Boxes";
 }
 
-<h1>Boxes</h1>
+<h1>@ViewData["Title"]</h1>
 
-<p>This page will display information about boxes.</p>
+<p>This section contains all tasks related to managing boxes and their contents.</p>
+
+<div class="list-group">
+    <a asp-page="/Boxes/Search" class="list-group-item list-group-item-action">Search Boxes &amp; View Contents</a>
+    <a asp-page="/Boxes/Place" class="list-group-item list-group-item-action">Place a Sample in a Box</a>
+    <a asp-page="/Boxes/Move" class="list-group-item list-group-item-action">Move a Sample</a>
+    <a asp-page="/Boxes/Rebox" class="list-group-item list-group-item-action">Bulk Update a Box (Re-box)</a>
+</div>

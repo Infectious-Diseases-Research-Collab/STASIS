@@ -1,0 +1,14 @@
+@page
+@model STASIS.Pages.AdministrationModel
+@{
+    ViewData["Title"] = "Administration";
+}
+
+<h1>@ViewData["Title"]</h1>
+
+<p>This section provides site-wide administrative functions.</p>
+
+<div class="list-group">
+    <a asp-page="/Administration/Users" class="list-group-item list-group-item-action">Manage Users</a>
+    <a asp-page="/Administration/Audit" class="list-group-item list-group-item-action">View Global Audit Trail</a>
+</div>
