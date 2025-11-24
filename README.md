@@ -7,7 +7,7 @@ This project is the Specimen Tracking And Storage Information System (STASIS).
 To get STASIS up and running on your local machine, follow these steps:
 
 1.  **Database Setup:**
-    *   Ensure you have a SQL Server instance running. The application expects a database named `STASIS`.
+    *   In SQL Server create a database called `STASIS`.
     *   Execute the `STASIS/setup.sql` script against your SQL Server instance to create the necessary database schema and seed initial data.
 
 2.  **Configure Database Connection:**
@@ -30,8 +30,8 @@ To get STASIS up and running on your local machine, follow these steps:
     ```
 
 3.  **Run the Application:**
-    *   Build and run the project from Visual Studio or using the .NET CLI:
+    *   Build and run the project from Visual Studio:
+    *   Optionally run using the .NET CLI:
         ```bash
         dotnet run
         ```
-    *   The application will typically launch in your default web browser.
