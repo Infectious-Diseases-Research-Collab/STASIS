@@ -8,7 +8,7 @@ To get STASIS up and running on your local machine, follow these steps:
 
 1.  **Database Setup:**
     *   In SQL Server create a database called `STASIS`.
-    *   Execute the `STASIS/setup.sql` script against your SQL Server instance to create the necessary database schema and seed initial data.
+    *   Execute the `STASIS/STASIS_create_tables.sql` script against your SQL Server instance to create the necessary database schema and seed initial data.
 
 2.  **Configure Database Connection:**
     *   Open `appsettings.json` in the project root.
