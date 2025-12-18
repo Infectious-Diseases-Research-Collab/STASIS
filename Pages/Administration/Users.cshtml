@@ -4,6 +4,33 @@
     ViewData["Title"] = "Manage Users";
 }
 
-<h1>@ViewData["Title"]</h1>
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1>@ViewData["Title"]</h1>
+    <a asp-page="./CreateUser" class="btn btn-primary">Add New User</a>
+</div>
 
-<p>This page will contain functionality to add/edit users and manage their roles.</p>
+<div class="table-responsive">
+    <table class="table table-striped table-hover">
+        <thead>
+            <tr>
+                <th>Email / Username</th>
+                <th>Roles</th>
+                <th>Department</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var user in Model.Users)
+            {
+                <tr>
+                    <td>@user.Email</td>
+                    <td>@user.Roles</td>
+                    <td>@user.Department</td>
+                    <td>
+                        <a asp-page="./EditUser" asp-route-id="@user.UserId" class="btn btn-sm btn-outline-secondary">Edit</a>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>

@@ -1,9 +1,10 @@
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using STASIS.Models;
 
 namespace STASIS.Data;
 
-public class StasisDbContext : DbContext
+public class StasisDbContext : IdentityDbContext
 {
     public StasisDbContext(DbContextOptions<StasisDbContext> options) : base(options)
     {
@@ -11,7 +12,7 @@ public class StasisDbContext : DbContext
 
     public DbSet<Study> Studies { get; set; }
     public DbSet<SampleType> SampleTypes { get; set; }
-    public DbSet<User> Users { get; set; }
+    public DbSet<UserProfile> UserProfiles { get; set; }
     public DbSet<Freezer> Freezers { get; set; }
     public DbSet<Rack> Racks { get; set; }
     public DbSet<Box> Boxes { get; set; }
@@ -23,9 +24,11 @@ public class StasisDbContext : DbContext
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        base.OnModelCreating(modelBuilder);
+
         modelBuilder.Entity<Study>().ToTable("tbl_Studies");
         modelBuilder.Entity<SampleType>().ToTable("tbl_SampleTypes");
-        modelBuilder.Entity<User>().ToTable("tbl_Users");
+        modelBuilder.Entity<UserProfile>().ToTable("tbl_UserProfiles");
         modelBuilder.Entity<Freezer>().ToTable("tbl_Freezers");
         modelBuilder.Entity<Rack>().ToTable("tbl_Racks");
         modelBuilder.Entity<Box>().ToTable("tbl_Boxes");

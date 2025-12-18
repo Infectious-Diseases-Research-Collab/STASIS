@@ -236,6 +236,7 @@ CREATE TABLE [dbo].[tbl_UserProfiles](
     [Department]            [nvarchar](100) NULL,
     [CanApproveShipments]   [bit] NOT NULL DEFAULT 0,
     [CanApproveDiscards]    [bit] NOT NULL DEFAULT 0,
+    [MustChangePassword]    [bit] NOT NULL DEFAULT 0,
     
     -- Constraints
     CONSTRAINT [PK_UserProfiles] PRIMARY KEY CLUSTERED ([UserProfileID] ASC),

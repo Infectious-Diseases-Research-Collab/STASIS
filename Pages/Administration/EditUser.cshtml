@@ -1,0 +1,69 @@
+@page "{id}"
+@model STASIS.Pages.Administration.EditUserModel
+@{
+    ViewData["Title"] = "Edit User";
+}
+
+<h1>@ViewData["Title"]</h1>
+
+<div class="row">
+    <div class="col-md-6">
+        <form method="post">
+            <div asp-validation-summary="All" class="text-danger"></div>
+            
+            <input type="hidden" asp-for="Input.UserId" />
+            
+            <div class="form-group mb-3">
+                <label asp-for="Input.Email" class="form-label"></label>
+                <input asp-for="Input.Email" class="form-control" readonly />
+            </div>
+
+            <div class="form-group mb-3">
+                <label asp-for="Input.Department" class="form-label">Department</label>
+                <input asp-for="Input.Department" class="form-control" />
+                <span asp-validation-for="Input.Department" class="text-danger"></span>
+            </div>
+
+            <div class="form-group mb-3">
+                <label asp-for="Input.Role" class="form-label">Role</label>
+                <select asp-for="Input.Role" asp-items="Model.Roles" class="form-select">
+                    <option value="">Select a Role</option>
+                </select>
+                <span asp-validation-for="Input.Role" class="text-danger"></span>
+            </div>
+
+            <div class="form-check mb-3">
+                <input class="form-check-input" type="checkbox" asp-for="Input.CanApproveShipments">
+                <label class="form-check-label" asp-for="Input.CanApproveShipments">
+                    Can Approve Shipments
+                </label>
+            </div>
+
+            <div class="form-check mb-3">
+                <input class="form-check-input" type="checkbox" asp-for="Input.CanApproveDiscards">
+                <label class="form-check-label" asp-for="Input.CanApproveDiscards">
+                    Can Approve Discards
+                </label>
+            </div>
+
+            <button type="submit" class="btn btn-primary">Save Changes</button>
+            <a asp-page="./Users" class="btn btn-secondary">Cancel</a>
+        </form>
+        
+        <hr />
+        
+        <form method="post" asp-page-handler="ResetPassword" class="mt-4">
+            <input type="hidden" name="id" value="@Model.Input.UserId" />
+            <h4>Reset Password</h4>
+            <div class="form-group mb-3">
+                <label name="newPassword" class="form-label">New Temporary Password</label>
+                <input name="newPassword" class="form-control" type="password" required />
+            </div>
+            <button type="submit" class="btn btn-warning">Reset Password</button>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}
