@@ -6,7 +6,7 @@
 |-------|-------|
 | Version | 2.1 |
 | Last Updated | December 2024 |
-| Related Documents | system_requirements_updated.md, STASIS_create_tables.sql |
+| Related Documents | system_requirements.md, STASIS_create_tables_postgres.sql |
 
 ---
 
@@ -14,7 +14,7 @@
 
 This system uses **ASP.NET Identity** for user authentication and role management.
 
-### ASP.NET Identity Tables (Created by Application)
+### ASP.NET Identity Tables (Created by Application or EF Core Migrations)
 
 | Table | Purpose |
 |-------|---------|

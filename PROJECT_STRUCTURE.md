@@ -68,7 +68,7 @@ This directory is a custom organization for this project, and it's a good practi
 -   **`/Services`:** Contains the application's business logic. Services are used to encapsulate logic for specific domains (e.g., `SampleService`, `StorageService`). They are injected into the Page Models to provide the necessary functionality. This promotes separation of concerns and makes the code more testable and maintainable.
     -   **Interfaces (`.cs`):** Defines the contract for the service (e.g., `ISampleService.cs`).
     -   **Implementations (`.cs`):** Contains the actual implementation of the service (e.g., `SampleService.cs`).
--   **`setup.sql`:** A SQL script that can be used to set up the initial database schema.
+-   **`STASIS_create_tables_postgres.sql`:** A PostgreSQL bootstrap script used to initialize the schema. Keep it aligned with the application model or replace it with EF Core migrations.
 
 ### `/Properties` Directory
 

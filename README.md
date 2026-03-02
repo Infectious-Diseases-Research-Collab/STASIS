@@ -2,36 +2,75 @@
 
 This project is the Specimen Tracking And Storage Information System (STASIS).
 
-## Local Setup Instructions
+## Local Setup with PostgreSQL
 
-To get STASIS up and running on your local machine, follow these steps:
+These steps are OS agnostic. You can develop on macOS with VS Code or on Windows with Visual Studio or VS Code. The shared requirement is a supported .NET SDK and a local PostgreSQL instance.
 
-1.  **Database Setup:**
-    *   In SQL Server create a database called `STASIS`.
-    *   Execute the `STASIS/STASIS_create_tables.sql` script against your SQL Server instance to create the necessary database schema and seed initial data.
+### 1. Install prerequisites
 
-2.  **Configure Database Connection:**
-    *   Open `appsettings.json` in the project root.
-    *   Update the `DefaultConnection` connection string to point to your local SQL Server instance. Replace `YOUR_SQL_SERVER_NAME` with the actual name or IP address of your SQL Server.
+Install the following:
 
-    ```json
-    {
-      "ConnectionStrings": {
-        "DefaultConnection": "Server=YOUR_SQL_SERVER_NAME;Database=STASIS;Trusted_Connection=True;MultipleActiveResultSets=true;TrustServerCertificate=True"
-      },
-      "Logging": {
-        "LogLevel": {
-          "Default": "Information",
-          "Microsoft.AspNetCore": "Warning"
-        }
-      },
-      "AllowedHosts": "*"
-    }
-    ```
+- .NET SDK from `https://dotnet.microsoft.com/download`
+- PostgreSQL 17 from `https://www.postgresql.org/download/`
+- An editor or IDE such as Visual Studio, VS Code, or JetBrains Rider
 
-3.  **Run the Application:**
-    *   Build and run the project from Visual Studio:
-    *   Optionally run using the .NET CLI:
-        ```bash
-        dotnet run
-        ```
+Verify the installs from a terminal:
+
+```bash
+dotnet --info
+psql --version
+```
+
+### 2. Create the PostgreSQL database
+
+Create a local database and confirm that it exists:
+
+```bash
+createdb stasis
+psql -lqt | grep stasis
+```
+
+Load the PostgreSQL bootstrap script:
+
+```bash
+psql -U stasis_app -d stasis -f STASIS/STASIS_create_tables_postgres.sql
+```
+
+Longer term, prefer EF Core migrations over a hand-maintained SQL script.
+
+### 3. Configure the application
+
+Store the local PostgreSQL connection string in .NET User Secrets instead of `appsettings.Development.json`:
+
+```bash
+dotnet user-secrets set "ConnectionStrings:DefaultConnection" "Host=localhost;Port=5432;Database=stasis;Username=stasis_app;Password=YOUR_POSTGRES_PASSWORD"
+```
+
+Verify the stored value if needed:
+
+```bash
+dotnet user-secrets list
+```
+
+Keep `appsettings.Development.json` free of passwords and other secrets. The application is configured to use `UseNpgsql(...)` with the `Npgsql.EntityFrameworkCore.PostgreSQL` provider.
+
+### 4. Open the project
+
+Open the repository in your preferred tool:
+
+- Visual Studio: open `STASIS.sln`
+- VS Code: install `ms-dotnettools.csdevkit`, then run `code .`
+
+If you use VS Code, the C# Dev Kit walkthrough can detect the installed .NET SDK and configure launch settings.
+
+### 5. Build and run the app
+
+From the repository root:
+
+```bash
+dotnet restore
+dotnet build STASIS.sln
+dotnet watch run --project STASIS.csproj
+```
+
+If `net10.0` does not build on your machine, update `STASIS.csproj` to a supported target framework such as `net9.0`.
