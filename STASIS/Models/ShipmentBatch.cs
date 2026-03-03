@@ -1,9 +1,11 @@
 using Microsoft.AspNetCore.Identity;
+using System.ComponentModel.DataAnnotations;
 
 namespace STASIS.Models;
 
 public class ShipmentBatch
 {
+    [Key]
     public int BatchID { get; set; }
     public DateTime ImportDate { get; set; }
     public string? ImportedByUserId { get; set; }

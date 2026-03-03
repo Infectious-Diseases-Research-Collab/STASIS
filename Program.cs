@@ -61,20 +61,30 @@ app.UseAuthorization();
 app.MapRazorPages();
 
 // Seed Admin User
+// Requires AdminSeedPassword in configuration (user secrets, env var, or appsettings).
+// Set via: dotnet user-secrets set "AdminSeedPassword" "YourSecurePassword"
 using (var scope = app.Services.CreateScope())
 {
-    var userManager = scope.ServiceProvider.GetRequiredService<UserManager<IdentityUser>>();
-    var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
-    
-    var adminEmail = "admin@stasis.com";
-    var adminUser = await userManager.FindByEmailAsync(adminEmail);
-    if (adminUser == null)
+    var adminPassword = app.Configuration["AdminSeedPassword"];
+    if (string.IsNullOrEmpty(adminPassword))
     {
-        adminUser = new IdentityUser { UserName = adminEmail, Email = adminEmail, EmailConfirmed = true };
-        var result = await userManager.CreateAsync(adminUser, "Admin123!");
-        if (result.Succeeded)
+        var startupLogger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+        startupLogger.LogWarning(
+            "AdminSeedPassword is not configured. The admin account will not be seeded. " +
+            "Set it with: dotnet user-secrets set \"AdminSeedPassword\" \"YourSecurePassword\"");
+    }
+    else
+    {
+        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<IdentityUser>>();
+        var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
+
+        var adminEmail = "admin@stasis.com";
+        var adminUser = await userManager.FindByEmailAsync(adminEmail);
+        if (adminUser == null)
         {
-            if (await roleManager.RoleExistsAsync("Admin"))
+            adminUser = new IdentityUser { UserName = adminEmail, Email = adminEmail, EmailConfirmed = true };
+            var result = await userManager.CreateAsync(adminUser, adminPassword);
+            if (result.Succeeded && await roleManager.RoleExistsAsync("Admin"))
             {
                 await userManager.AddToRoleAsync(adminUser, "Admin");
             }

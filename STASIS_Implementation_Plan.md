@@ -6,7 +6,7 @@
 |-------|-------|
 | Project | Specimen Tracking And Storage Information System (STASIS) |
 | Related Document | `system_requirements.md` |
-| Last Updated | March 2, 2026 |
+| Last Updated | March 3, 2026 |
 | Status | Active Working Plan |
 | Owner | |
 
@@ -22,15 +22,15 @@ This plan translates the requirements in `system_requirements.md` into a practic
 
 - ASP.NET Core Razor Pages app structure, authentication, and role-enabled Identity configuration
 - Forced-authentication application flow with password-change enforcement
-- Admin user seeding in `Program.cs`
+- Admin user seeding in `Program.cs` (password read from `AdminSeedPassword` configuration key)
 - User administration: list users, create users, edit roles/departments, reset passwords
-- Core data models and DbContext for specimens, storage hierarchy, shipments, audit log, and user profiles
+- Core data models and DbContext fully aligned with the PostgreSQL schema
+- EF Core migrations (`Migrations/`) as the source of truth for schema management
 - Sample list page with paging, barcode filter, study filter, sample type filter, and expandable location details
-- PostgreSQL provider configuration and PostgreSQL bootstrap script
+- PostgreSQL provider configuration, bootstrap script, and developer smoke test checklist in README
 
 ### Partially Implemented
 
-- Database schema exists, but the bootstrap script contains fields and tables not represented in the current EF models
 - Navigation and page shells exist for samples, boxes, shipments, audit, and lab setup, but many handlers are placeholders
 - Shipment-related entities exist, but shipment workflows are not implemented in the UI or services
 
@@ -61,16 +61,16 @@ This plan translates the requirements in `system_requirements.md` into a practic
 
 | Order | Req ID | Description | Status | Notes |
 |-------|--------|-------------|--------|-------|
-| 0.1 | N/A | Reconcile EF models with PostgreSQL bootstrap schema | In Progress | Current SQL script includes fields and tables not present in the C# models, such as approvals and shipment batch fields. Pick one source of truth. |
-| 0.2 | N/A | Adopt EF Core migrations for schema changes | Not Started | This should replace hand-maintained drift between models and SQL scripts. |
-| 0.3 | N/A | Remove hard-coded admin seed password from runtime startup | Not Started | Seed logic exists, but production-safe provisioning is still needed. |
-| 0.4 | N/A | Add developer smoke test checklist to README | In Progress | Basic setup exists, but no explicit verification checklist yet. |
+| 0.1 | N/A | Reconcile EF models with PostgreSQL bootstrap schema | Complete | All SQL tables and columns are represented in the C# models and `StasisDbContext`. Models and schema are fully in sync. |
+| 0.2 | N/A | Adopt EF Core migrations for schema changes | Complete | `Migrations/20260303031801_InitialCreate` generated from current models. Use `dotnet ef migrations add` for all future schema changes. See README for how to apply to a new or existing database. |
+| 0.3 | N/A | Remove hard-coded admin seed password from runtime startup | Complete | Password now read from `AdminSeedPassword` configuration key (user secrets / env var). App logs a warning and skips seeding if the key is absent. |
+| 0.4 | N/A | Add developer smoke test checklist to README | Complete | Section 6 added to `README.md` with build, database, authentication, and core functionality checks. |
 
 **Exit Criteria**
 
-- [ ] The PostgreSQL schema matches the app model
-- [ ] New schema changes are made through migrations
-- [ ] Local setup, secrets, and bootstrap steps are documented and reproducible
+- [x] The PostgreSQL schema matches the app model
+- [x] New schema changes are made through migrations
+- [x] Local setup, secrets, and bootstrap steps are documented and reproducible
 
 ---
 
@@ -277,3 +277,4 @@ Use this as the starting point when implementing each phase.
 |------|---------|--------|---------|
 | December 2024 | 1.0 | | Initial draft |
 | March 2, 2026 | 2.0 | Codex | Replaced generic draft with codebase-aware implementation roadmap and current status |
+| March 3, 2026 | 2.1 | Claude | Completed Phase 0: confirmed schema/model alignment, generated EF migrations, moved admin seed password to configuration, added smoke test checklist to README |
