@@ -6,4 +6,113 @@
 
 <h1>@ViewData["Title"]</h1>
 
-<p>This page will display a log of all significant events and data changes in the system.</p>
+<form method="get" class="row g-3 mb-4">
+    <div class="col-md-3">
+        <label class="form-label">Table</label>
+        <select name="TableName" class="form-select">
+            <option value="">All tables</option>
+            @foreach (var t in Model.TableNames)
+            {
+                <option value="@t" selected="@(Model.TableName == t)">@t</option>
+            }
+        </select>
+    </div>
+    <div class="col-md-3">
+        <label class="form-label">User</label>
+        <select name="UserId" class="form-select">
+            <option value="">All users</option>
+            @foreach (var u in Model.Users)
+            {
+                <option value="@u.Id" selected="@(Model.UserId == u.Id)">@u.Email</option>
+            }
+        </select>
+    </div>
+    <div class="col-md-2">
+        <label class="form-label">From</label>
+        <input type="date" name="DateFrom" class="form-control"
+               value="@(Model.DateFrom?.ToString("yyyy-MM-dd"))" />
+    </div>
+    <div class="col-md-2">
+        <label class="form-label">To</label>
+        <input type="date" name="DateTo" class="form-control"
+               value="@(Model.DateTo?.ToString("yyyy-MM-dd"))" />
+    </div>
+    <div class="col-md-2 d-flex align-items-end gap-2">
+        <button type="submit" class="btn btn-primary">Filter</button>
+        <a asp-page="./Audit" class="btn btn-secondary">Clear</a>
+    </div>
+</form>
+
+<p class="text-muted">Showing @Model.AuditLogs.Count of @Model.TotalCount entries</p>
+
+@if (Model.AuditLogs.Count == 0)
+{
+    <div class="alert alert-info">No audit log entries found.</div>
+}
+else
+{
+    <div class="table-responsive">
+        <table class="table table-sm table-striped">
+            <thead>
+                <tr>
+                    <th>Timestamp</th>
+                    <th>Table</th>
+                    <th>Record ID</th>
+                    <th>Field</th>
+                    <th>Old Value</th>
+                    <th>New Value</th>
+                    <th>Changed By</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var entry in Model.AuditLogs)
+                {
+                    <tr>
+                        <td>@entry.Timestamp.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</td>
+                        <td>@entry.TableName</td>
+                        <td>@entry.RecordID</td>
+                        <td>@entry.FieldName</td>
+                        <td class="text-muted">@(entry.OldValue ?? "-")</td>
+                        <td>@(entry.NewValue ?? "-")</td>
+                        <td>@(entry.User?.Email ?? entry.ChangedByUserId ?? "-")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    @if (Model.TotalPages > 1)
+    {
+        <nav>
+            <ul class="pagination">
+                <li class="page-item @(!Model.HasPreviousPage ? "disabled" : "")">
+                    <a class="page-link" asp-page="./Audit"
+                       asp-route-tableName="@Model.TableName"
+                       asp-route-userId="@Model.UserId"
+                       asp-route-dateFrom="@Model.DateFrom?.ToString("yyyy-MM-dd")"
+                       asp-route-dateTo="@Model.DateTo?.ToString("yyyy-MM-dd")"
+                       asp-route-pageIndex="@(Model.PageIndex - 1)">Previous</a>
+                </li>
+                @for (var i = Math.Max(1, Model.PageIndex - 2); i <= Math.Min(Model.TotalPages, Model.PageIndex + 2); i++)
+                {
+                    <li class="page-item @(i == Model.PageIndex ? "active" : "")">
+                        <a class="page-link" asp-page="./Audit"
+                           asp-route-tableName="@Model.TableName"
+                           asp-route-userId="@Model.UserId"
+                           asp-route-dateFrom="@Model.DateFrom?.ToString("yyyy-MM-dd")"
+                           asp-route-dateTo="@Model.DateTo?.ToString("yyyy-MM-dd")"
+                           asp-route-pageIndex="@i">@i</a>
+                    </li>
+                }
+                <li class="page-item @(!Model.HasNextPage ? "disabled" : "")">
+                    <a class="page-link" asp-page="./Audit"
+                       asp-route-tableName="@Model.TableName"
+                       asp-route-userId="@Model.UserId"
+                       asp-route-dateFrom="@Model.DateFrom?.ToString("yyyy-MM-dd")"
+                       asp-route-dateTo="@Model.DateTo?.ToString("yyyy-MM-dd")"
+                       asp-route-pageIndex="@(Model.PageIndex + 1)">Next</a>
+                </li>
+            </ul>
+        </nav>
+    }
+}

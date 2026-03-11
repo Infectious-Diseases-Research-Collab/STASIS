@@ -26,6 +26,8 @@ builder.Services.AddTransient<Microsoft.AspNetCore.Identity.UI.Services.IEmailSe
 
 builder.Services.AddScoped<ISampleService, SampleService>();
 builder.Services.AddScoped<IStorageService, StorageService>();
+builder.Services.AddScoped<IAuditService, AuditService>();
+builder.Services.AddScoped<ILabSetupService, LabSetupService>();
 
 builder.Services.AddRazorPages()
     .AddMvcOptions(options =>

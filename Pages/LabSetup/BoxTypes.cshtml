@@ -6,4 +6,42 @@
 
 <h1>@ViewData["Title"]</h1>
 
-<p>This page will contain functionality to define different types of boxes (e.g., 9x9, 10x10).</p>
+<p class="text-muted">
+    Box types and categories are enforced by database check constraints.
+    The values below are the valid options used when creating boxes.
+</p>
+
+<div class="row">
+    <div class="col-md-5">
+        <h5>Box Types</h5>
+        <table class="table table-bordered table-sm">
+            <thead class="table-light">
+                <tr><th>Type</th><th>Description</th></tr>
+            </thead>
+            <tbody>
+                <tr><td>81-slot</td><td>9×9 cryogenic box</td></tr>
+                <tr><td>100-slot</td><td>10×10 cryogenic box</td></tr>
+                <tr><td>Filter Paper Binder</td><td>Filter paper specimen binder</td></tr>
+            </tbody>
+        </table>
+    </div>
+    <div class="col-md-5 offset-md-1">
+        <h5>Box Categories</h5>
+        <table class="table table-bordered table-sm">
+            <thead class="table-light">
+                <tr><th>Category</th><th>Purpose</th></tr>
+            </thead>
+            <tbody>
+                <tr><td>Standard</td><td>Regular storage box</td></tr>
+                <tr><td>Temp</td><td>Temporary holding location</td></tr>
+                <tr><td>Trash</td><td>Discard staging</td></tr>
+                <tr><td>Shipping</td><td>Outbound shipment box</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="alert alert-info mt-3">
+    To add new box types or categories, a database schema change and application update are required.
+    Contact the system administrator.
+</div>

@@ -6,7 +6,7 @@
 |-------|-------|
 | Project | Specimen Tracking And Storage Information System (STASIS) |
 | Related Document | `system_requirements.md` |
-| Last Updated | March 3, 2026 |
+| Last Updated | March 11, 2026 |
 | Status | Active Working Plan |
 | Owner | |
 
@@ -80,18 +80,18 @@ This plan translates the requirements in `system_requirements.md` into a practic
 
 | Order | Req ID | Description | Status | Notes |
 |-------|--------|-------------|--------|-------|
-| 1.1 | REQ-SEC-01, REQ-SEC-02 | Role-based access control (Read, Write, Admin) | In Progress | Roles, auth, and fallback policy exist, but page-level authorization rules are not explicit. |
+| 1.1 | REQ-SEC-01, REQ-SEC-02 | Role-based access control (Read, Write, Admin) | Complete | `[Authorize(Roles = "Admin")]` on Administration/* and LabSetup/*; `[Authorize(Roles = "Write,Admin")]` on all write pages. |
 | 1.2 | REQ-SEC-01 | Admin user management screens | Complete | `CreateUser`, `Users`, and `EditUser` are implemented. |
-| 1.3 | REQ-INV-01 | Freezer, rack, box, and position data model | In Progress | Core entities exist, but management UI is placeholder-only. |
+| 1.3 | REQ-INV-01 | Freezer, rack, box, and position data model | Complete | `ILabSetupService`/`LabSetupService` implemented; Freezers and Racks pages have full CRUD with delete-guard. BoxTypes is an informational reference page. |
 | 1.4 | REQ-ACC-03, REQ-ACC-04 | Specimen data model and uniqueness | In Progress | The model supports barcode uniqueness conceptually; validation is not consistently enforced through workflows yet. |
-| 1.5 | REQ-RPT-03 | Audit trail infrastructure | In Progress | Table/model exists, but no change logging is currently written. |
+| 1.5 | REQ-RPT-03 | Audit trail infrastructure | Complete | `IAuditService`/`AuditService` implemented; writes to `tbl_AuditLog`; used by Freezers and Racks CRUD. |
 
 **Exit Criteria**
 
-- [ ] All protected pages have explicit authorization intent
-- [ ] Storage hierarchy can be maintained through working UI or admin tooling
+- [x] All protected pages have explicit authorization intent
+- [x] Storage hierarchy can be maintained through working UI or admin tooling
 - [ ] Barcode uniqueness is enforced through app workflows and database constraints
-- [ ] Audit logging is captured for meaningful changes
+- [x] Audit logging is captured for meaningful changes
 
 ---
 
@@ -123,7 +123,7 @@ This plan translates the requirements in `system_requirements.md` into a practic
 
 | Order | Req ID | Description | Status | Notes |
 |-------|--------|-------------|--------|-------|
-| 3.1 | REQ-INV-02 | Manage freezers, racks, box types, and box assignments | Not Started | `Pages/LabSetup/*` and box-related pages are placeholders. |
+| 3.1 | REQ-INV-02 | Manage freezers, racks, box types, and box assignments | In Progress | Freezers and Racks CRUD complete (Phase 1). Box assignment UI not yet implemented. |
 | 3.2 | REQ-RPT-02 | Search boxes and display contents/location | Not Started | `Pages/Boxes/Search.cshtml.cs` is a placeholder. |
 | 3.3 | REQ-MOV-01 | Move an individual sample between boxes | Not Started | `Pages/Boxes/Move.cshtml.cs` is a placeholder. |
 | 3.4 | REQ-MOV-03 | Move an entire box to another rack/freezer | Not Started | Likely belongs in box search/details workflow. |
@@ -278,3 +278,4 @@ Use this as the starting point when implementing each phase.
 | December 2024 | 1.0 | | Initial draft |
 | March 2, 2026 | 2.0 | Codex | Replaced generic draft with codebase-aware implementation roadmap and current status |
 | March 3, 2026 | 2.1 | Claude | Completed Phase 0: confirmed schema/model alignment, generated EF migrations, moved admin seed password to configuration, added smoke test checklist to README |
+| March 11, 2026 | 2.2 | Claude | Completed Phase 1: explicit page-level authorization on all pages; IAuditService/AuditService; Administration/Audit page with filtering and pagination; LabSetup Freezers and Racks with full CRUD; BoxTypes reference page |

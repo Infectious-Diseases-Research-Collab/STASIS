@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -7,6 +8,7 @@ using STASIS.Models;
 
 namespace STASIS.Pages.Administration
 {
+    [Authorize(Roles = "Admin")]
     public class UsersModel : PageModel
     {
         private readonly UserManager<IdentityUser> _userManager;
