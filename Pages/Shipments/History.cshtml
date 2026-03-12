@@ -11,6 +11,19 @@
     <div class="alert alert-success alert-dismissible fade show">@TempData["Success"]<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
 }
 
+@if (Model.ShipmentErrors.Any())
+{
+    <div class="alert alert-danger">
+        <strong>Shipment blocked by sample rules:</strong>
+        <ul class="mb-0 mt-1">
+            @foreach (var err in Model.ShipmentErrors)
+            {
+                <li>@err</li>
+            }
+        </ul>
+    </div>
+}
+
 <h5>All Batches</h5>
 @if (!Model.Batches.Any())
 {
@@ -165,20 +178,34 @@ else
     @if (batch.Status == "Approved" && batch.TotalAvailable > 0)
     {
         <h5>Ship This Batch</h5>
-        <form method="post" asp-page-handler="Ship" class="row g-2 mb-4" style="max-width:700px;">
+        <form method="post" asp-page-handler="Ship" class="mb-4" style="max-width:700px;">
             <input type="hidden" asp-for="BatchId" />
-            <div class="col-md-3">
-                <input asp-for="Courier" class="form-control" placeholder="Courier *" />
+            <div class="row g-2">
+                <div class="col-md-3">
+                    <input asp-for="Courier" class="form-control" placeholder="Courier *" />
+                </div>
+                <div class="col-md-3">
+                    <input asp-for="TrackingNumber" class="form-control" placeholder="Tracking #" />
+                </div>
+                <div class="col-md-4">
+                    <input asp-for="Destination" class="form-control" placeholder="Destination" />
+                </div>
             </div>
-            <div class="col-md-3">
-                <input asp-for="TrackingNumber" class="form-control" placeholder="Tracking #" />
-            </div>
-            <div class="col-md-4">
-                <input asp-for="Destination" class="form-control" placeholder="Destination" />
-            </div>
-            <div class="col-md-2">
-                <button type="submit" class="btn btn-success w-100"
-                        onclick="return confirm('Ship @batch.TotalAvailable specimen(s)?');">Ship</button>
+            <div class="row g-2 mt-1">
+                <div class="col-md-3">
+                    <div class="form-check">
+                        <input asp-for="IsInternational" class="form-check-input" />
+                        <label asp-for="IsInternational" class="form-check-label">International</label>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <label asp-for="FilterPaperSpots" class="form-label small mb-0">Filter Paper Spots/Specimen</label>
+                    <input asp-for="FilterPaperSpots" class="form-control form-control-sm" type="number" min="1" max="4" />
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button type="submit" class="btn btn-success w-100"
+                            onclick="return confirm('Ship @batch.TotalAvailable specimen(s)?');">Ship</button>
+                </div>
             </div>
         </form>
     }

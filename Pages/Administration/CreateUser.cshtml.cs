@@ -4,8 +4,10 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 using STASIS.Data;
 using STASIS.Models;
+using STASIS.Services;
 using System.ComponentModel.DataAnnotations;
 
 namespace STASIS.Pages.Administration
@@ -16,15 +18,18 @@ namespace STASIS.Pages.Administration
         private readonly UserManager<IdentityUser> _userManager;
         private readonly RoleManager<IdentityRole> _roleManager;
         private readonly StasisDbContext _context;
+        private readonly IAuditService _auditService;
 
         public CreateUserModel(
-            UserManager<IdentityUser> userManager, 
+            UserManager<IdentityUser> userManager,
             RoleManager<IdentityRole> roleManager,
-            StasisDbContext context)
+            StasisDbContext context,
+            IAuditService auditService)
         {
             _userManager = userManager;
             _roleManager = roleManager;
             _context = context;
+            _auditService = auditService;
         }
 
         [BindProperty]
@@ -84,6 +89,10 @@ namespace STASIS.Pages.Administration
                 };
                 _context.UserProfiles.Add(profile);
                 await _context.SaveChangesAsync();
+
+                var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
+                await _auditService.LogChangeAsync("AspNetUsers", user.Id,
+                    "Created", null, $"{Input.Email}, Role: {Input.Role}", currentUserId);
 
                 return RedirectToPage("./Users");
             }

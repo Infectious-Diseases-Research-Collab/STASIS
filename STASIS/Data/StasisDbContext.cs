@@ -143,6 +143,16 @@ public class StasisDbContext : IdentityDbContext
             .HasIndex(s => new { s.BoxID, s.PositionRow, s.PositionCol })
             .IsUnique();
 
+        // Performance indexes for search/filter queries
+        modelBuilder.Entity<Specimen>()
+            .HasIndex(s => s.Status);
+
+        modelBuilder.Entity<Specimen>()
+            .HasIndex(s => s.StudyID);
+
+        modelBuilder.Entity<Specimen>()
+            .HasIndex(s => s.SampleTypeID);
+
         modelBuilder.Entity<Specimen>()
             .Property(s => s.Status)
             .HasDefaultValue("In-Stock");

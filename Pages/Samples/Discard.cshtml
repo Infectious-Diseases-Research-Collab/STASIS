@@ -1,0 +1,96 @@
+@page
+@model STASIS.Pages.Samples.DiscardModel
+@{
+    ViewData["Title"] = "Request Discard";
+}
+
+<h1>@ViewData["Title"]</h1>
+
+<div asp-validation-summary="All" class="text-danger mb-3"></div>
+
+@if (TempData["Success"] != null)
+{
+    <div class="alert alert-success">
+        @TempData["Success"]
+        <div class="mt-2">
+            <a asp-page="/Administration/Approvals" class="btn btn-outline-primary btn-sm">View Approvals</a>
+            <a asp-page="/Samples/Discard" class="btn btn-outline-secondary btn-sm ms-2">New Request</a>
+        </div>
+    </div>
+}
+else
+{
+    <div class="card mb-4" style="max-width:700px;">
+        <div class="card-body">
+            <h5 class="card-title">Enter Specimen Barcodes</h5>
+            <p class="text-muted small">
+                Enter barcodes separated by commas or one per line. Specimens must be in a discardable state
+                (not already shipped, discarded, or pending discard).
+            </p>
+
+            <form method="post" asp-page-handler="Lookup">
+                <div class="mb-3">
+                    <textarea asp-for="Barcodes" class="form-control" rows="5"
+                              placeholder="Enter barcodes..." autofocus></textarea>
+                </div>
+                <button type="submit" class="btn btn-primary">Look Up Specimens</button>
+                <a asp-page="/Samples" class="btn btn-secondary ms-2">Cancel</a>
+            </form>
+        </div>
+    </div>
+
+    @if (Model.FoundSpecimens.Any() || Model.NotFoundBarcodes.Any() || Model.InvalidBarcodes.Any())
+    {
+        @if (Model.NotFoundBarcodes.Any())
+        {
+            <div class="alert alert-warning">
+                <strong>Not Found:</strong> @string.Join(", ", Model.NotFoundBarcodes)
+            </div>
+        }
+
+        @if (Model.InvalidBarcodes.Any())
+        {
+            <div class="alert alert-secondary">
+                <strong>Ineligible:</strong> @string.Join(", ", Model.InvalidBarcodes)
+            </div>
+        }
+
+        @if (Model.FoundSpecimens.Any())
+        {
+            <h5>Eligible for Discard (@Model.FoundSpecimens.Count)</h5>
+            <table class="table table-sm table-bordered table-striped">
+                <thead>
+                    <tr>
+                        <th>Barcode</th>
+                        <th>Study</th>
+                        <th>Sample Type</th>
+                        <th>Box</th>
+                        <th>Position</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var s in Model.FoundSpecimens)
+                    {
+                        <tr>
+                            <td>@s.BarcodeID</td>
+                            <td>@(s.Study?.StudyCode ?? "-")</td>
+                            <td>@(s.SampleType?.TypeName ?? "-")</td>
+                            <td>@(s.Box?.BoxLabel ?? "-")</td>
+                            <td>@(s.PositionRow != null ? $"{s.PositionRow}-{s.PositionCol}" : "-")</td>
+                            <td>@s.Status</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+
+            <form method="post" asp-page-handler="Request">
+                <input type="hidden" asp-for="Barcodes" />
+                <button type="submit" class="btn btn-danger"
+                        onclick="return confirm('Submit discard request for @Model.FoundSpecimens.Count specimen(s)? This will require ED, Regulatory, and PI approval.');">
+                    Submit Discard Request
+                </button>
+            </form>
+        }
+    }
+}

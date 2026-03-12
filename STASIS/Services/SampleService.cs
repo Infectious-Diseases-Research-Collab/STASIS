@@ -8,10 +8,12 @@ namespace STASIS.Services;
 public class SampleService : ISampleService
 {
     private readonly StasisDbContext _context;
+    private readonly IAuditService _auditService;
 
-    public SampleService(StasisDbContext context)
+    public SampleService(StasisDbContext context, IAuditService auditService)
     {
         _context = context;
+        _auditService = auditService;
     }
 
     public async Task<(List<Specimen> Specimens, int TotalCount)> GetSpecimensAsync(string? searchString, int? studyId, int? sampleTypeId, int pageIndex, int pageSize)
@@ -299,6 +301,172 @@ public class SampleService : ISampleService
         }
 
         return result;
+    }
+
+    public async Task<Specimen?> GetSpecimenByIdAsync(int specimenId)
+    {
+        return await _context.Specimens
+            .Include(s => s.Study)
+            .Include(s => s.SampleType)
+            .Include(s => s.Box)
+                .ThenInclude(b => b!.Rack)
+                    .ThenInclude(r => r!.Freezer)
+            .Include(s => s.DiscardApproval)
+            .FirstOrDefaultAsync(s => s.SpecimenID == specimenId);
+    }
+
+    public async Task<Approval> RequestDiscardAsync(List<int> specimenIds, string userId)
+    {
+        var approval = new Approval
+        {
+            ApprovalType = "Discard",
+            RequestedByUserId = userId,
+            RequestedDate = DateTime.UtcNow,
+            OverallStatus = "Pending"
+        };
+        _context.Approvals.Add(approval);
+        await _context.SaveChangesAsync();
+
+        // Link specimens to this discard approval
+        var specimens = await _context.Specimens
+            .Where(s => specimenIds.Contains(s.SpecimenID))
+            .ToListAsync();
+
+        foreach (var specimen in specimens)
+        {
+            specimen.DiscardApprovalID = approval.ApprovalID;
+        }
+        await _context.SaveChangesAsync();
+
+        await _auditService.LogChangeAsync("tbl_Approvals", approval.ApprovalID.ToString(),
+            "Created", null,
+            $"Discard request for {specimens.Count} specimen(s)", userId);
+
+        return approval;
+    }
+
+    public async Task<List<Approval>> GetPendingDiscardApprovalsAsync()
+    {
+        return await _context.Approvals
+            .Include(a => a.RequestedByUser)
+            .Include(a => a.DiscardedSpecimens)
+                .ThenInclude(s => s.SampleType)
+            .Where(a => a.ApprovalType == "Discard" && a.OverallStatus == "Pending")
+            .OrderByDescending(a => a.RequestedDate)
+            .ToListAsync();
+    }
+
+    public async Task<Approval?> GetDiscardApprovalByIdAsync(int approvalId)
+    {
+        return await _context.Approvals
+            .Include(a => a.RequestedByUser)
+            .Include(a => a.EDApproverUser)
+            .Include(a => a.RegulatoryApproverUser)
+            .Include(a => a.PIApproverUser)
+            .Include(a => a.DiscardedSpecimens)
+                .ThenInclude(s => s.SampleType)
+            .Include(a => a.DiscardedSpecimens)
+                .ThenInclude(s => s.Study)
+            .Include(a => a.DiscardedSpecimens)
+                .ThenInclude(s => s.Box)
+            .FirstOrDefaultAsync(a => a.ApprovalID == approvalId);
+    }
+
+    public async Task ApproveDiscardAsync(int approvalId, string approverUserId, string level, string status, string? comments)
+    {
+        var approval = await _context.Approvals.FindAsync(approvalId);
+        if (approval == null || approval.ApprovalType != "Discard") return;
+
+        var now = DateTime.UtcNow;
+
+        switch (level.ToLowerInvariant())
+        {
+            case "ed":
+                approval.EDApproverUserId = approverUserId;
+                approval.EDApprovalStatus = status;
+                approval.EDApprovalDate = now;
+                approval.EDComments = comments;
+                break;
+            case "regulatory":
+                approval.RegulatoryApproverUserId = approverUserId;
+                approval.RegulatoryApprovalStatus = status;
+                approval.RegulatoryApprovalDate = now;
+                approval.RegulatoryComments = comments;
+                break;
+            case "pi":
+                approval.PIApproverUserId = approverUserId;
+                approval.PIApprovalStatus = status;
+                approval.PIApprovalDate = now;
+                approval.PIComments = comments;
+                break;
+        }
+
+        // Discard requires ALL THREE approvals (ED + Regulatory + PI)
+        if (approval.EDApprovalStatus == "Rejected" ||
+            approval.RegulatoryApprovalStatus == "Rejected" ||
+            approval.PIApprovalStatus == "Rejected")
+        {
+            approval.OverallStatus = "Rejected";
+        }
+        else if (approval.EDApprovalStatus == "Approved" &&
+                 approval.RegulatoryApprovalStatus == "Approved" &&
+                 approval.PIApprovalStatus == "Approved")
+        {
+            approval.OverallStatus = "Approved";
+        }
+
+        await _context.SaveChangesAsync();
+
+        await _auditService.LogChangeAsync("tbl_Approvals", approval.ApprovalID.ToString(),
+            $"{level}Approval", null, status, approverUserId);
+    }
+
+    public async Task ExecuteDiscardAsync(int approvalId, string userId)
+    {
+        var approval = await _context.Approvals
+            .Include(a => a.DiscardedSpecimens)
+            .FirstOrDefaultAsync(a => a.ApprovalID == approvalId);
+
+        if (approval == null || approval.OverallStatus != "Approved") return;
+
+        foreach (var specimen in approval.DiscardedSpecimens)
+        {
+            var oldStatus = specimen.Status;
+            specimen.Status = "Discarded";
+            specimen.DiscardApprovalID = approvalId;
+
+            await _auditService.LogChangeAsync("tbl_Specimens", specimen.SpecimenID.ToString(),
+                "Status", oldStatus, "Discarded", userId);
+        }
+
+        await _context.SaveChangesAsync();
+    }
+
+    public async Task<Specimen?> GetSpecimenDetailAsync(int specimenId)
+    {
+        return await _context.Specimens
+            .Include(s => s.Study)
+            .Include(s => s.SampleType)
+            .Include(s => s.Box)
+                .ThenInclude(b => b!.Rack)
+                    .ThenInclude(r => r!.Freezer)
+            .Include(s => s.DiscardApproval)
+            .Include(s => s.FilterPaperUsages)
+                .ThenInclude(u => u.UsedByUser)
+            .Include(s => s.ShipmentContents)
+                .ThenInclude(sc => sc.Shipment)
+            .FirstOrDefaultAsync(s => s.SpecimenID == specimenId);
+    }
+
+    public async Task<List<FilterPaperUsage>> GetFilterPaperUsageAsync(int specimenId)
+    {
+        return await _context.FilterPaperUsages
+            .Include(u => u.UsedByUser)
+            .Include(u => u.ShipmentContent)
+                .ThenInclude(sc => sc!.Shipment)
+            .Where(u => u.SpecimenID == specimenId)
+            .OrderByDescending(u => u.UsageDate)
+            .ToListAsync();
     }
 
     private static string[] ParseCsvLine(string line)

@@ -1,0 +1,216 @@
+@page "{id:int}"
+@model STASIS.Pages.Samples.DetailModel
+@{
+    ViewData["Title"] = $"Specimen — {Model.Specimen!.BarcodeID}";
+    var s = Model.Specimen!;
+}
+
+<h1>Specimen Detail</h1>
+
+<div class="row mb-4">
+    <div class="col-md-6">
+        <table class="table table-sm table-bordered">
+            <tr><td>Barcode</td><td><strong>@s.BarcodeID</strong></td></tr>
+            @if (!string.IsNullOrEmpty(s.LegacyID))
+            {
+                <tr><td>Legacy ID</td><td>@s.LegacyID</td></tr>
+            }
+            <tr><td>Study</td><td>@(s.Study?.StudyCode ?? "-")</td></tr>
+            <tr><td>Sample Type</td><td>@(s.SampleType?.TypeName ?? "-")</td></tr>
+            <tr><td>Collection Date</td><td>@(s.CollectionDate?.ToString("yyyy-MM-dd") ?? "-")</td></tr>
+            <tr>
+                <td>Status</td>
+                <td>
+                    @{
+                        var statusBadge = s.Status switch {
+                            "In-Stock" => "bg-success",
+                            "Shipped" => "bg-primary",
+                            "Discarded" => "bg-danger",
+                            "Depleted" => "bg-secondary",
+                            "Temp" => "bg-info",
+                            _ => "bg-warning text-dark"
+                        };
+                    }
+                    <span class="badge @statusBadge">@s.Status</span>
+                </td>
+            </tr>
+        </table>
+    </div>
+    <div class="col-md-6">
+        <table class="table table-sm table-bordered">
+            <tr><td>Box</td><td>@(s.Box?.BoxLabel ?? "-")</td></tr>
+            <tr><td>Position</td><td>@(s.PositionRow != null ? $"Row {s.PositionRow}, Col {s.PositionCol}" : "-")</td></tr>
+            @if (s.Box?.Rack != null)
+            {
+                <tr><td>Rack</td><td>@s.Box.Rack.RackName</td></tr>
+                @if (s.Box.Rack.Freezer != null)
+                {
+                    <tr><td>Freezer</td><td>@s.Box.Rack.Freezer.FreezerName</td></tr>
+                }
+            }
+            @if (s.DiscardApproval != null)
+            {
+                <tr class="table-danger"><td>Discard Approval</td><td>#@s.DiscardApprovalID — @s.DiscardApproval.OverallStatus</td></tr>
+            }
+        </table>
+    </div>
+</div>
+
+@if (Model.IsPlasma)
+{
+    <div class="card mb-4" style="max-width:500px;">
+        <div class="card-body">
+            <h5 class="card-title">Plasma Details</h5>
+            <table class="table table-sm table-bordered mb-0">
+                <tr><td>Aliquot Number</td><td><strong>@(s.AliquotNumber?.ToString() ?? "-")</strong></td></tr>
+                <tr>
+                    <td>Shipping Eligibility</td>
+                    <td>
+                        @if (s.AliquotNumber == 1)
+                        {
+                            <span class="badge bg-success">Eligible (Aliquot-1)</span>
+                        }
+                        else if (s.AliquotNumber == 2)
+                        {
+                            <span class="badge bg-danger">Not eligible (Aliquot-2 — local retention only)</span>
+                        }
+                        else
+                        {
+                            <span class="text-muted">No aliquot number assigned</span>
+                        }
+                    </td>
+                </tr>
+            </table>
+        </div>
+    </div>
+}
+
+@if (Model.IsFilterPaper)
+{
+    <div class="card mb-4" style="max-width:500px;">
+        <div class="card-body">
+            <h5 class="card-title">Filter Paper Spot Tracking</h5>
+            <table class="table table-sm table-bordered mb-0">
+                <tr>
+                    <td>Remaining Spots</td>
+                    <td>
+                        <strong>@(s.RemainingSpots ?? 0)</strong> / 4
+                        @if ((s.RemainingSpots ?? 0) == 0)
+                        {
+                            <span class="badge bg-secondary ms-2">Depleted</span>
+                        }
+                    </td>
+                </tr>
+                <tr>
+                    <td>Shipped International</td>
+                    <td>
+                        @s.SpotsShippedInternational / 2 max
+                        @if (s.SpotsShippedInternational >= 2)
+                        {
+                            <span class="badge bg-warning text-dark ms-2">Limit reached</span>
+                        }
+                    </td>
+                </tr>
+                <tr>
+                    <td>Reserved Local</td>
+                    <td>
+                        @s.SpotsReservedLocal / 2 max
+                        @if (s.SpotsReservedLocal >= 2)
+                        {
+                            <span class="badge bg-warning text-dark ms-2">Limit reached</span>
+                        }
+                    </td>
+                </tr>
+            </table>
+        </div>
+    </div>
+
+    @if (Model.FilterPaperUsages.Any())
+    {
+        <h5>Filter Paper Usage History</h5>
+        <div class="table-responsive">
+            <table class="table table-sm table-bordered table-striped">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Spots Used</th>
+                        <th>International?</th>
+                        <th>By</th>
+                        <th>Shipment</th>
+                        <th>Notes</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var u in Model.FilterPaperUsages)
+                    {
+                        <tr>
+                            <td>@u.UsageDate.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</td>
+                            <td>@u.SpotsUsed</td>
+                            <td>@(u.IsInternationalShipment ? "Yes" : "No")</td>
+                            <td>@(u.UsedByUser?.Email ?? "-")</td>
+                            <td>
+                                @if (u.ShipmentContent?.Shipment != null)
+                                {
+                                    <a asp-page="/Shipments/History"
+                                       asp-route-batchId="@u.ShipmentContent.Shipment.BatchID">
+                                        Shipment #@u.ShipmentContent.ShipmentID
+                                    </a>
+                                }
+                                else
+                                {
+                                    <span class="text-muted">-</span>
+                                }
+                            </td>
+                            <td>@(u.Notes ?? "-")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+    else
+    {
+        <p class="text-muted">No filter paper usage recorded yet.</p>
+    }
+}
+
+@if (s.ShipmentContents.Any())
+{
+    <h5>Shipment History</h5>
+    <table class="table table-sm table-bordered">
+        <thead>
+            <tr>
+                <th>Shipment</th>
+                <th>Date</th>
+                <th>Courier</th>
+                <th>Spots Used</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var sc in s.ShipmentContents)
+            {
+                <tr>
+                    <td>
+                        @if (sc.Shipment != null)
+                        {
+                            <a asp-page="/Shipments/History" asp-route-batchId="@sc.Shipment.BatchID">
+                                #@sc.ShipmentID
+                            </a>
+                        }
+                    </td>
+                    <td>@(sc.Shipment?.ShipmentDate.ToLocalTime().ToString("yyyy-MM-dd") ?? "-")</td>
+                    <td>@(sc.Shipment?.Courier ?? "-")</td>
+                    <td>@(sc.SpotsUsed?.ToString() ?? "-")</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+<div class="mt-3">
+    <a asp-page="/Samples" class="btn btn-secondary">Back to Samples</a>
+    @if (s.Box != null)
+    {
+        <a asp-page="/Boxes/Search" asp-route-label="@s.Box.BoxLabel" class="btn btn-outline-primary ms-2">View Box</a>
+    }
+</div>

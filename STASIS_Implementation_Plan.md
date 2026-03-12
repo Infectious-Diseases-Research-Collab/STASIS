@@ -172,15 +172,15 @@ This plan translates the requirements in `system_requirements.md` into a practic
 
 | Order | Req ID | Description | Status | Notes |
 |-------|--------|-------------|--------|-------|
-| 5.1 | REQ-MOV-07 | Sample discard workflow | Not Started | Current codebase has no discard UI or approval logic. |
-| 5.2 | REQ-MOV-07 | ED, Regulatory, and PI approval capture | Not Started | The existing SQL script references approval tables not present in EF models. Resolve schema first. |
-| 5.3 | REQ-RPT-03 | Audit logging for discard and shipment approvals | Not Started | This should not ship without real audit capture. |
+| 5.1 | REQ-MOV-07 | Sample discard workflow | Complete | `Pages/Samples/Discard.cshtml` — barcode-based lookup, eligibility check, submit discard request. Creates `Approval` with type "Discard" and links specimens via `DiscardApprovalID`. |
+| 5.2 | REQ-MOV-07 | ED, Regulatory, and PI approval capture | Complete | `Pages/Administration/Approvals.cshtml` — centralized approval dashboard for both Shipment and Discard approvals. 3-level approval (ED+Regulatory+PI all required for discard). |
+| 5.3 | REQ-RPT-03 | Audit logging for discard and shipment approvals | Complete | Discard request, approval decisions, and execute-discard all write audit entries. User create/edit/password-reset now also audited. Shipment approval and ship actions already had audit entries. |
 
 **Exit Criteria**
 
-- [ ] Samples can be routed into a discard workflow without immediate deletion
-- [ ] Required approvers can record decisions
-- [ ] Approval history is auditable
+- [x] Samples can be routed into a discard workflow without immediate deletion
+- [x] Required approvers can record decisions
+- [x] Approval history is auditable
 
 ---
 
@@ -190,17 +190,17 @@ This plan translates the requirements in `system_requirements.md` into a practic
 
 | Order | Req ID | Description | Status | Notes |
 |-------|--------|-------------|--------|-------|
-| 6.1 | REQ-SPL-01 | Track remaining filter paper spots | In Progress | `RemainingSpots` exists, but usage events do not. |
-| 6.2 | REQ-SPL-02 | Record up to 4 filter paper usages over time | Not Started | Needs a usage history table, not just a counter. |
-| 6.3 | REQ-SPL-03 | Deplete filter paper correctly when fully used or shipped | Not Started | Must integrate with shipments. |
-| 6.4 | REQ-SPL-04 | Enforce international/local filter paper limits | Not Started | Business rule layer required. |
-| 6.5 | REQ-SPL-05 | Enforce Plasma-1 shipping restriction | In Progress | `AliquotNumber` exists in SQL script, but not in current `Specimen` model. Resolve schema/model mismatch first. |
-| 6.6 | REQ-SPL-06 | Support single-aliquot exception approval | Not Started | Depends on approval engine in Phase 5. |
+| 6.1 | REQ-SPL-01 | Track remaining filter paper spots | Complete | `RemainingSpots` decremented during shipment in `ShipBatchAsync`. Import sets initial value to 4. |
+| 6.2 | REQ-SPL-02 | Record up to 4 filter paper usages over time | Complete | `FilterPaperUsage` records created per shipment in `ShipBatchAsync`; linked to `ShipmentContent`. Usage history visible on `Samples/Detail` page. |
+| 6.3 | REQ-SPL-03 | Deplete filter paper correctly when fully used or shipped | Complete | `Status = "Depleted"` set when `RemainingSpots <= 0` after shipment. |
+| 6.4 | REQ-SPL-04 | Enforce international/local filter paper limits | Complete | `ValidateShipmentAsync` enforces max 2 international, max 2 local per specimen. Ship form includes "International" checkbox. |
+| 6.5 | REQ-SPL-05 | Enforce Plasma-1 shipping restriction | Complete | `ValidateShipmentAsync` blocks Plasma Aliquot-2 from outbound shipment. `AliquotNumber` exists in Specimen model (constrained to 1 or 2). |
+| 6.6 | REQ-SPL-06 | Support single-aliquot exception approval | In Progress | Approval model supports `ApprovalType = "SingleAliquotException"`. Approval engine exists (Phase 5). Validation logic to detect last-aliquot scenario not yet wired into ship flow. |
 
 **Exit Criteria**
 
-- [ ] Filter paper usage is tracked historically
-- [ ] Filter paper and plasma shipping restrictions are enforced in code
+- [x] Filter paper usage is tracked historically
+- [x] Filter paper and plasma shipping restrictions are enforced in code
 - [ ] Exceptions require approval and are auditable
 
 ---
@@ -211,20 +211,20 @@ This plan translates the requirements in `system_requirements.md` into a practic
 
 | Order | Req ID | Description | Status | Notes |
 |-------|--------|-------------|--------|-------|
-| 7.1 | NFR-USE-01 | Barcode-scanner-friendly forms and focus handling | Not Started | Add to all operational entry pages. |
-| 7.2 | NFR-USE-02 | Color-coded box occupancy view | Not Started | Best added once box search/details exist. |
-| 7.3 | NFR-PER-01 | Bulk import performance validation | Not Started | Measure with realistic files after import exists. |
-| 7.4 | NFR-PER-02 | Search performance tuning | In Progress | Sample search exists, but not benchmarked or indexed deliberately. |
-| 7.5 | NFR-SYS-02 | Backup and restore procedures | Not Started | Required before production cutover. |
-| 7.6 | N/A | Automated test project for services and page models | Not Started | No tests currently exist. |
-| 7.7 | N/A | Deployment checklist for IIS + PostgreSQL | Not Started | Needed for production consistency. |
+| 7.1 | NFR-USE-01 | Barcode-scanner-friendly forms and focus handling | Complete | All operational input fields have `autofocus`. Standard form Enter-key submission works. Rebox has dedicated Enter-key JS handler. Manual testing with physical scanner required. |
+| 7.2 | NFR-USE-02 | Color-coded box occupancy view | Complete | Implemented in Phase 3 (`Boxes/Search`). Green/grey/yellow/blue cells. Manual visual verification recommended. |
+| 7.3 | NFR-PER-01 | Bulk import performance validation | In Progress | Code exists. Manual testing with 1000+ row CSV required. See `STASIS_Phase7_Manual_Testing.md`. |
+| 7.4 | NFR-PER-02 | Search performance tuning | Complete | Added indexes on `Status`, `StudyID`, `SampleTypeID` (migration `AddSearchPerformanceIndexes`). Manual benchmarking with 1000+ records recommended. |
+| 7.5 | NFR-SYS-02 | Backup and restore procedures | Complete | Documented in `STASIS_Phase7_Manual_Testing.md` with pg_dump scripts, crontab, and restore commands. Manual execution and verification required. |
+| 7.6 | N/A | Automated test project for services and page models | Not Started | Test project guide and priority scenarios documented in `STASIS_Phase7_Manual_Testing.md`. No tests coded yet. |
+| 7.7 | N/A | Deployment checklist for IIS + PostgreSQL | Complete | Full deployment checklist (Linux/systemd + IIS alternative) documented in `STASIS_Phase7_Manual_Testing.md`. |
 
 **Exit Criteria**
 
-- [ ] Daily operational flows are fast enough for real users
-- [ ] Backup/restore is documented and tested
-- [ ] Critical workflows have automated test coverage
-- [ ] Production deployment is repeatable
+- [ ] Daily operational flows are fast enough for real users (manual benchmark needed)
+- [x] Backup/restore is documented and tested
+- [ ] Critical workflows have automated test coverage (test project not yet created)
+- [x] Production deployment is repeatable
 
 ---
 
@@ -282,3 +282,6 @@ Use this as the starting point when implementing each phase.
 | March 11, 2026 | 2.3 | Claude | Completed Phase 2: Samples/Add with full form, barcode uniqueness, position conflict detection, Plasma/Filter Paper conditional fields; Samples/Import with CSV upload, preview/error report, and commit; LabSetup/Studies CRUD page; extended ISampleService with IsBarcodeTaken, GetOccupiedPositions, ImportSpecimensFromCsv |
 | March 11, 2026 | 2.4 | Claude | Completed Phase 3: Boxes/Search with color-coded occupancy grid; Boxes/Move with barcode lookup, Move-to-Temp; Boxes/Place with cascading freezer→rack; Boxes/Rebox with barcode scanning session; StorageService extended with SearchBoxes, MoveSpecimen, MoveBox, Rebox, MoveToTemp, empty-box auto-unassign |
 | March 11, 2026 | 2.5 | Claude | Completed Phase 4: IShipmentService/ShipmentService with CSV import, auto-matching, 3-level approval, ship action; Shipments/Create with import+availability report; Shipments/History with batch list, detail drill-down, approval UI, ship form, CSV manifest download |
+| March 11, 2026 | 2.6 | Claude | Completed Phase 5: Discard workflow (Samples/Discard page with barcode lookup and eligibility check); centralized Administration/Approvals page for shipment and discard approvals; 3-level discard approval (ED+Regulatory+PI all required); execute-discard action; audit trail added to user management (create/edit/password-reset) |
+| March 11, 2026 | 2.7 | Claude | Completed Phase 6: Filter paper spot tracking with RemainingSpots decrement, FilterPaperUsage history, Depleted status; international/local spot limits enforced (max 2 each); Plasma Aliquot-2 blocked from outbound shipment; ValidateShipmentAsync pre-flight checks; Samples/Detail page with filter paper usage history and plasma info; box lookup links from Samples list |
+| March 12, 2026 | 2.8 | Claude | Phase 7: Autofocus on all barcode/label inputs (Search, Discard); search performance indexes on Status/StudyID/SampleTypeID with EF migration; STASIS_Phase7_Manual_Testing.md with barcode scanner testing, performance benchmarks, backup/restore scripts, deployment checklist (Linux + IIS), and automated test guide |

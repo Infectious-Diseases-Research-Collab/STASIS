@@ -1,0 +1,287 @@
+@page
+@model STASIS.Pages.Administration.ApprovalsModel
+@{
+    ViewData["Title"] = "Approvals";
+}
+
+<h1>@ViewData["Title"]</h1>
+
+@if (TempData["Success"] != null)
+{
+    <div class="alert alert-success alert-dismissible fade show">@TempData["Success"]<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
+}
+
+<form method="get" class="row g-2 mb-3">
+    <div class="col-auto">
+        <select asp-for="TypeFilter" class="form-select form-select-sm" onchange="this.form.submit()">
+            <option value="">All Types</option>
+            <option value="Discard">Discard</option>
+            <option value="Shipment">Shipment</option>
+            <option value="SingleAliquotException">Single Aliquot Exception</option>
+        </select>
+    </div>
+    <div class="col-auto">
+        <select asp-for="StatusFilter" class="form-select form-select-sm" onchange="this.form.submit()">
+            <option value="Pending">Pending</option>
+            <option value="Approved">Approved</option>
+            <option value="Rejected">Rejected</option>
+            <option value="">All Statuses</option>
+        </select>
+    </div>
+</form>
+
+@if (!Model.Approvals.Any())
+{
+    <p class="text-muted">No approvals match the current filters.</p>
+}
+else
+{
+    <table class="table table-bordered table-sm">
+        <thead class="table-light">
+            <tr>
+                <th>ID</th>
+                <th>Type</th>
+                <th>Requested</th>
+                <th>Requestor</th>
+                <th>Items</th>
+                <th>ED</th>
+                <th>Regulatory</th>
+                <th>PI</th>
+                <th>Overall</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var a in Model.Approvals)
+            {
+                <tr class="@(a.ApprovalID == Model.ApprovalId ? "table-active" : "")">
+                    <td>#@a.ApprovalID</td>
+                    <td>
+                        @{
+                            var typeBadge = a.ApprovalType switch {
+                                "Discard" => "bg-danger",
+                                "Shipment" => "bg-primary",
+                                _ => "bg-secondary"
+                            };
+                        }
+                        <span class="badge @typeBadge">@a.ApprovalType</span>
+                    </td>
+                    <td>@a.RequestedDate.ToLocalTime().ToString("yyyy-MM-dd")</td>
+                    <td>@(a.RequestedByEmail ?? "-")</td>
+                    <td>@a.ItemCount</td>
+                    <td>
+                        @if (a.EDStatus != null)
+                        {
+                            <span class="badge @(a.EDStatus == "Approved" ? "bg-success" : "bg-danger")">@a.EDStatus</span>
+                        }
+                        else
+                        {
+                            <span class="text-muted">-</span>
+                        }
+                    </td>
+                    <td>
+                        @if (a.RegulatoryStatus != null)
+                        {
+                            <span class="badge @(a.RegulatoryStatus == "Approved" ? "bg-success" : "bg-danger")">@a.RegulatoryStatus</span>
+                        }
+                        else
+                        {
+                            <span class="text-muted">-</span>
+                        }
+                    </td>
+                    <td>
+                        @if (a.PIStatus != null)
+                        {
+                            <span class="badge @(a.PIStatus == "Approved" ? "bg-success" : "bg-danger")">@a.PIStatus</span>
+                        }
+                        else
+                        {
+                            <span class="text-muted">-</span>
+                        }
+                    </td>
+                    <td>
+                        @{
+                            var statusBadge = a.OverallStatus switch {
+                                "Approved" => "bg-success",
+                                "Rejected" => "bg-danger",
+                                _ => "bg-warning text-dark"
+                            };
+                        }
+                        <span class="badge @statusBadge">@a.OverallStatus</span>
+                    </td>
+                    <td>
+                        <a asp-page="./Approvals" asp-route-approvalId="@a.ApprovalID"
+                           asp-route-statusFilter="@Model.StatusFilter" asp-route-typeFilter="@Model.TypeFilter"
+                           class="btn btn-sm btn-outline-primary">Details</a>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@if (Model.SelectedApproval != null)
+{
+    var approval = Model.SelectedApproval;
+    <hr />
+    <h4>Approval #@approval.ApprovalID — @approval.ApprovalType</h4>
+
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <table class="table table-sm table-bordered">
+                <tr><td>Type</td><td><strong>@approval.ApprovalType</strong></td></tr>
+                <tr><td>Requested By</td><td>@(approval.RequestedByUser?.Email ?? "-")</td></tr>
+                <tr><td>Requested Date</td><td>@approval.RequestedDate.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</td></tr>
+                <tr><td>Overall Status</td><td><strong>@approval.OverallStatus</strong></td></tr>
+            </table>
+        </div>
+
+        <div class="col-md-4">
+            <h6>Approval Status</h6>
+            <table class="table table-sm table-bordered">
+                <tr>
+                    <td>ED</td>
+                    <td>
+                        @if (approval.EDApprovalStatus != null)
+                        {
+                            <span class="badge @(approval.EDApprovalStatus == "Approved" ? "bg-success" : "bg-danger")">@approval.EDApprovalStatus</span>
+                            <br /><small class="text-muted">@(approval.EDApproverUser?.Email) — @approval.EDApprovalDate?.ToLocalTime().ToString("yyyy-MM-dd")</small>
+                            @if (!string.IsNullOrEmpty(approval.EDComments))
+                            {
+                                <br /><small>@approval.EDComments</small>
+                            }
+                        }
+                        else
+                        {
+                            <span class="text-muted">Pending</span>
+                        }
+                    </td>
+                </tr>
+                <tr>
+                    <td>Regulatory</td>
+                    <td>
+                        @if (approval.RegulatoryApprovalStatus != null)
+                        {
+                            <span class="badge @(approval.RegulatoryApprovalStatus == "Approved" ? "bg-success" : "bg-danger")">@approval.RegulatoryApprovalStatus</span>
+                            <br /><small class="text-muted">@(approval.RegulatoryApproverUser?.Email) — @approval.RegulatoryApprovalDate?.ToLocalTime().ToString("yyyy-MM-dd")</small>
+                            @if (!string.IsNullOrEmpty(approval.RegulatoryComments))
+                            {
+                                <br /><small>@approval.RegulatoryComments</small>
+                            }
+                        }
+                        else
+                        {
+                            <span class="text-muted">Pending</span>
+                        }
+                    </td>
+                </tr>
+                <tr>
+                    <td>PI</td>
+                    <td>
+                        @if (approval.PIApprovalStatus != null)
+                        {
+                            <span class="badge @(approval.PIApprovalStatus == "Approved" ? "bg-success" : "bg-danger")">@approval.PIApprovalStatus</span>
+                            <br /><small class="text-muted">@(approval.PIApproverUser?.Email) — @approval.PIApprovalDate?.ToLocalTime().ToString("yyyy-MM-dd")</small>
+                            @if (!string.IsNullOrEmpty(approval.PIComments))
+                            {
+                                <br /><small>@approval.PIComments</small>
+                            }
+                        }
+                        else
+                        {
+                            <span class="text-muted">Pending</span>
+                        }
+                    </td>
+                </tr>
+                <tr class="table-light"><td>Overall</td><td><strong>@approval.OverallStatus</strong></td></tr>
+            </table>
+        </div>
+
+        @if (approval.OverallStatus == "Pending")
+        {
+            <div class="col-md-4">
+                <h6>Record Approval</h6>
+                <form method="post" asp-page-handler="Approve">
+                    <input type="hidden" asp-for="ApprovalId" />
+                    <input type="hidden" asp-for="StatusFilter" />
+                    <div class="mb-2">
+                        <select asp-for="ApprovalLevel" class="form-select form-select-sm">
+                            <option value="">— Level —</option>
+                            <option value="ED">ED</option>
+                            <option value="Regulatory">Regulatory</option>
+                            <option value="PI">PI</option>
+                        </select>
+                    </div>
+                    <div class="mb-2">
+                        <select asp-for="ApprovalStatus" class="form-select form-select-sm">
+                            <option value="Approved">Approve</option>
+                            <option value="Rejected">Reject</option>
+                        </select>
+                    </div>
+                    <div class="mb-2">
+                        <input asp-for="ApprovalComments" class="form-control form-control-sm" placeholder="Comments" />
+                    </div>
+                    <button type="submit" class="btn btn-sm btn-primary">Submit</button>
+                </form>
+            </div>
+        }
+    </div>
+
+    @if (approval.ApprovalType == "Discard" && approval.DiscardedSpecimens.Any())
+    {
+        <h5>Specimens for Discard (@approval.DiscardedSpecimens.Count)</h5>
+        <div class="table-responsive">
+            <table class="table table-sm table-striped table-bordered">
+                <thead>
+                    <tr>
+                        <th>Barcode</th>
+                        <th>Study</th>
+                        <th>Sample Type</th>
+                        <th>Box</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var s in approval.DiscardedSpecimens)
+                    {
+                        var rowClass = s.Status == "Discarded" ? "table-danger" : "";
+                        <tr class="@rowClass">
+                            <td>@s.BarcodeID</td>
+                            <td>@(s.Study?.StudyCode ?? "-")</td>
+                            <td>@(s.SampleType?.TypeName ?? "-")</td>
+                            <td>@(s.Box?.BoxLabel ?? "-")</td>
+                            <td>@s.Status</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        @if (approval.OverallStatus == "Approved" && approval.DiscardedSpecimens.Any(s => s.Status != "Discarded"))
+        {
+            <form method="post" asp-page-handler="ExecuteDiscard" class="mb-4">
+                <input type="hidden" asp-for="ApprovalId" />
+                <input type="hidden" asp-for="StatusFilter" />
+                <button type="submit" class="btn btn-danger"
+                        onclick="return confirm('Execute discard for @approval.DiscardedSpecimens.Count(s => s.Status != "Discarded") specimen(s)? This cannot be undone.');">
+                    Execute Discard
+                </button>
+            </form>
+        }
+    }
+
+    @if (approval.ApprovalType == "Shipment" && approval.ShipmentBatches.Any())
+    {
+        <h5>Linked Shipment Batches</h5>
+        <ul>
+            @foreach (var batch in approval.ShipmentBatches)
+            {
+                <li>
+                    Batch #@batch.BatchID — @batch.Status
+                    <a asp-page="/Shipments/History" asp-route-batchId="@batch.BatchID"
+                       class="btn btn-sm btn-outline-primary ms-2">View Batch</a>
+                </li>
+            }
+        </ul>
+    }
+}

@@ -38,6 +38,12 @@ namespace STASIS.Pages.Shipments
         public string? TrackingNumber { get; set; }
         [BindProperty]
         public string? Destination { get; set; }
+        [BindProperty]
+        public bool IsInternational { get; set; }
+        [BindProperty]
+        public int FilterPaperSpots { get; set; } = 1;
+
+        public List<string> ShipmentErrors { get; set; } = new();
 
         public async Task OnGetAsync()
         {
@@ -65,11 +71,25 @@ namespace STASIS.Pages.Shipments
             if (BatchId == null) return RedirectToPage();
 
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
-            await _shipmentService.ShipBatchAsync(BatchId.Value,
-                Courier ?? "", TrackingNumber, Destination, userId);
 
-            TempData["Success"] = "Shipment recorded. Specimens marked as Shipped.";
-            return RedirectToPage(new { BatchId });
+            try
+            {
+                await _shipmentService.ShipBatchAsync(BatchId.Value,
+                    Courier ?? "", TrackingNumber, Destination, userId,
+                    IsInternational, FilterPaperSpots);
+
+                TempData["Success"] = "Shipment recorded. Specimens marked as Shipped.";
+                return RedirectToPage(new { BatchId });
+            }
+            catch (InvalidOperationException ex)
+            {
+                // Validation errors from special sample rules
+                ShipmentErrors = ex.Message.Split(" | ").ToList();
+                Batches = await _shipmentService.GetAllBatchesAsync();
+                if (BatchId.HasValue)
+                    SelectedBatch = await _shipmentService.GetBatchByIdAsync(BatchId.Value);
+                return Page();
+            }
         }
 
         public async Task<IActionResult> OnGetManifestAsync(int shipmentId)

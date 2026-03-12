@@ -14,6 +14,20 @@ public interface ISampleService
     Task UpdateSpecimen(Specimen specimen);
     Task DeleteSpecimen(int id);
     Task<ImportResult> ImportSpecimensFromCsv(Stream csvStream);
+
+    // Discard workflow
+    Task<Approval> RequestDiscardAsync(List<int> specimenIds, string userId);
+    Task<List<Approval>> GetPendingDiscardApprovalsAsync();
+    Task<Approval?> GetDiscardApprovalByIdAsync(int approvalId);
+    Task ApproveDiscardAsync(int approvalId, string approverUserId, string level, string status, string? comments);
+    Task ExecuteDiscardAsync(int approvalId, string userId);
+    Task<Specimen?> GetSpecimenByIdAsync(int specimenId);
+
+    // Specimen detail with full navigation
+    Task<Specimen?> GetSpecimenDetailAsync(int specimenId);
+
+    // Filter paper usage history
+    Task<List<FilterPaperUsage>> GetFilterPaperUsageAsync(int specimenId);
 }
 
 public class ImportResult

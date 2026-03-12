@@ -16,6 +16,10 @@ public interface IShipmentService
     // Approval
     Task ApproveBatchAsync(int batchId, string approverUserId, string level, string status, string? comments);
 
+    // Validation
+    Task<List<string>> ValidateShipmentAsync(int batchId, bool isInternational, int filterPaperSpotsPerSpecimen);
+
     // Ship
-    Task<Shipment> ShipBatchAsync(int batchId, string courier, string? trackingNumber, string? destination, string userId);
+    Task<Shipment> ShipBatchAsync(int batchId, string courier, string? trackingNumber, string? destination,
+        string userId, bool isInternational = false, int filterPaperSpotsPerSpecimen = 0);
 }

@@ -23,25 +23,54 @@ psql --version
 
 ### 2. Create the PostgreSQL database and apply migrations
 
-Create the application login if you have not already done so:
 
-```bash
-psql postgres
-CREATE ROLE stasis_app WITH LOGIN PASSWORD 'YOUR_POSTGRES_PASSWORD';
-\q
-```
+# STASIS Database Setup
 
-Create the local database:
+Follow these steps to initialize the local development database. Ensure you are in the directory containing the `.sql` scripts before starting.
 
-```bash
-createdb -O stasis_app stasis
-```
+## 🚀 Quick Setup (macOS & Windows with Git Bash)
 
-Confirm that it exists:
+If you are on a Mac or using Git Bash on Windows, run the automation script:
 
-```bash
-psql -lqt | grep stasis
-```
+1. **Make the script executable** (Mac only):
+   ```bash
+   chmod +x setup_db.sh
+   ```
+2. **Run the script**:
+   ```bash
+   ./setup_db.sh
+   ```
+
+---
+
+## 🛠 Manual Setup (Windows CMD / PowerShell)
+
+If you cannot run the `.sh` script, execute these commands in order:
+
+1. **Create the Role**:
+   ```powershell
+   psql -U postgres -f 00_STASIS_create_db_user.sql
+   ```
+
+2. **Create the Database**:
+   ```powershell
+   psql -U postgres -c "CREATE DATABASE stasis_db OWNER stasis_app;"
+   ```
+   *Note: If the database already exists, you can ignore the error.*
+
+3. **Initialize Schema**:
+   ```powershell
+   psql -U stasis_app -d stasis_db -f 01_STASIS_create_tables_postgres.sql
+   ```
+
+---
+
+## 📝 Configuration Details
+* **Default Superuser**: `postgres`
+* **Application User**: `stasis_app`
+* **Database Name**: `stasis_db`
+* **Schema**: `public`
+
 
 Apply the EF Core migrations to create the schema and seed data. Run from the repository root after setting user secrets (step 3):
 
@@ -64,7 +93,6 @@ psql -U stasis_app -d stasis -c "
 "
 ```
 
-The bootstrap script (`STASIS/STASIS_create_tables_postgres.sql`) can still be used to wipe and recreate the schema with seed data during early development. For all schema changes going forward, create a new EF Core migration instead of editing the SQL script.
 
 ### 3. Configure the application
 

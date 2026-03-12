@@ -4,8 +4,10 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 using STASIS.Data;
 using STASIS.Models;
+using STASIS.Services;
 using System.ComponentModel.DataAnnotations;
 
 namespace STASIS.Pages.Administration
@@ -16,15 +18,18 @@ namespace STASIS.Pages.Administration
         private readonly UserManager<IdentityUser> _userManager;
         private readonly RoleManager<IdentityRole> _roleManager;
         private readonly StasisDbContext _context;
+        private readonly IAuditService _auditService;
 
         public EditUserModel(
             UserManager<IdentityUser> userManager,
             RoleManager<IdentityRole> roleManager,
-            StasisDbContext context)
+            StasisDbContext context,
+            IAuditService auditService)
         {
             _userManager = userManager;
             _roleManager = roleManager;
             _context = context;
+            _auditService = auditService;
         }
 
         [BindProperty]
@@ -104,6 +109,10 @@ namespace STASIS.Pages.Administration
 
             await _context.SaveChangesAsync();
 
+            var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
+            await _auditService.LogChangeAsync("AspNetUsers", user.Id,
+                "Updated", null, $"Role: {Input.Role}, Dept: {Input.Department}", currentUserId);
+
             return RedirectToPage("./Users");
         }
 
@@ -123,6 +132,10 @@ namespace STASIS.Pages.Administration
                     profile.MustChangePassword = true;
                     await _context.SaveChangesAsync();
                 }
+
+                var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
+                await _auditService.LogChangeAsync("AspNetUsers", user.Id,
+                    "PasswordReset", null, "Password reset by admin", currentUserId);
 
                 return RedirectToPage("./Users");
             }

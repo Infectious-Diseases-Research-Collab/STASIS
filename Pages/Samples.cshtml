@@ -16,6 +16,7 @@
 <div class="mb-3">
     <a asp-page="/Samples/Add" class="btn btn-success">Add New Sample</a>
     <a asp-page="/Samples/Import" class="btn btn-info">Bulk Import Samples</a>
+    <a asp-page="/Samples/Discard" class="btn btn-outline-danger">Request Discard</a>
 </div>
 
 <form asp-page="./Samples" method="get">
@@ -53,10 +54,15 @@
                 <td>
                     <span class="expand-icon" data-bs-toggle="collapse" data-bs-target="#details-@item.SpecimenID">+</span>
                 </td>
-                <td>@item.BarcodeID</td>
+                <td><a asp-page="/Samples/Detail" asp-route-id="@item.SpecimenID">@item.BarcodeID</a></td>
                 <td>@(item.Study?.StudyCode)</td>
                 <td>@(item.SampleType?.TypeName)</td>
-                <td>@(item.Box?.BoxLabel)</td>
+                <td>
+                    @if (item.Box != null)
+                    {
+                        <a asp-page="/Boxes/Search" asp-route-label="@item.Box.BoxLabel">@item.Box.BoxLabel</a>
+                    }
+                </td>
                 <td>@item.PositionRow-@item.PositionCol</td>
                 <td>@item.Status</td>
             </tr>

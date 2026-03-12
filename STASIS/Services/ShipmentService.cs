@@ -250,12 +250,83 @@ public class ShipmentService : IShipmentService
             $"{level}Approval", null, status, approverUserId);
     }
 
-    public async Task<Shipment> ShipBatchAsync(int batchId, string courier, string? trackingNumber,
-        string? destination, string userId)
+    public async Task<List<string>> ValidateShipmentAsync(int batchId, bool isInternational, int filterPaperSpotsPerSpecimen)
     {
+        var errors = new List<string>();
         var batch = await _context.ShipmentBatches
             .Include(b => b.ShipmentRequests)
-                .ThenInclude(r => r.MatchedSpecimen)
+                .ThenInclude(r => r.MatchedSpecimen!)
+                    .ThenInclude(s => s.SampleType)
+            .FirstOrDefaultAsync(b => b.BatchID == batchId);
+
+        if (batch == null)
+        {
+            errors.Add("Batch not found.");
+            return errors;
+        }
+
+        var pendingRequests = batch.ShipmentRequests
+            .Where(r => r.Status == "Pending" && r.MatchedSpecimenID != null)
+            .ToList();
+
+        foreach (var request in pendingRequests)
+        {
+            var specimen = request.MatchedSpecimen!;
+            var typeName = specimen.SampleType?.TypeName ?? "";
+
+            // Plasma-2 restriction (REQ-SPL-05)
+            if (typeName.Equals("Plasma", StringComparison.OrdinalIgnoreCase) &&
+                specimen.AliquotNumber == 2)
+            {
+                errors.Add($"{specimen.BarcodeID}: Plasma Aliquot-2 cannot be shipped outbound. Only Aliquot-1 is allowed.");
+            }
+
+            // Filter Paper spot rules (REQ-SPL-04)
+            if (typeName.Equals("Filter Paper", StringComparison.OrdinalIgnoreCase))
+            {
+                var spots = filterPaperSpotsPerSpecimen > 0 ? filterPaperSpotsPerSpecimen : 1;
+                var remaining = specimen.RemainingSpots ?? 0;
+
+                if (spots > remaining)
+                {
+                    errors.Add($"{specimen.BarcodeID}: Only {remaining} spot(s) remaining, cannot ship {spots}.");
+                }
+
+                if (isInternational)
+                {
+                    var newIntlTotal = specimen.SpotsShippedInternational + spots;
+                    if (newIntlTotal > 2)
+                    {
+                        errors.Add($"{specimen.BarcodeID}: International spot limit exceeded. Already shipped {specimen.SpotsShippedInternational} internationally, max 2.");
+                    }
+                }
+                else
+                {
+                    // Local shipment — check reserved local limit
+                    var newLocalTotal = specimen.SpotsReservedLocal + spots;
+                    if (newLocalTotal > 2)
+                    {
+                        errors.Add($"{specimen.BarcodeID}: Local reserve limit exceeded. Already used {specimen.SpotsReservedLocal} locally, max 2.");
+                    }
+                }
+            }
+        }
+
+        return errors;
+    }
+
+    public async Task<Shipment> ShipBatchAsync(int batchId, string courier, string? trackingNumber,
+        string? destination, string userId, bool isInternational = false, int filterPaperSpotsPerSpecimen = 0)
+    {
+        // Validate first
+        var errors = await ValidateShipmentAsync(batchId, isInternational, filterPaperSpotsPerSpecimen);
+        if (errors.Count > 0)
+            throw new InvalidOperationException(string.Join(" | ", errors));
+
+        var batch = await _context.ShipmentBatches
+            .Include(b => b.ShipmentRequests)
+                .ThenInclude(r => r.MatchedSpecimen!)
+                    .ThenInclude(s => s.SampleType)
             .FirstOrDefaultAsync(b => b.BatchID == batchId);
 
         if (batch == null) throw new InvalidOperationException("Batch not found.");
@@ -277,22 +348,85 @@ public class ShipmentService : IShipmentService
             .Where(r => r.Status == "Pending" && r.MatchedSpecimenID != null))
         {
             var specimen = request.MatchedSpecimen!;
-            specimen.Status = "Shipped";
+            var typeName = specimen.SampleType?.TypeName ?? "";
+
+            int spotsUsed = 0;
+
+            // Filter Paper — track spot consumption
+            if (typeName.Equals("Filter Paper", StringComparison.OrdinalIgnoreCase))
+            {
+                spotsUsed = filterPaperSpotsPerSpecimen > 0 ? filterPaperSpotsPerSpecimen : 1;
+                specimen.RemainingSpots = (specimen.RemainingSpots ?? 0) - spotsUsed;
+
+                if (isInternational)
+                    specimen.SpotsShippedInternational += spotsUsed;
+                else
+                    specimen.SpotsReservedLocal += spotsUsed;
+
+                // Record usage history
+                var usage = new FilterPaperUsage
+                {
+                    SpecimenID = specimen.SpecimenID,
+                    UsageDate = DateTime.UtcNow,
+                    SpotsUsed = spotsUsed,
+                    IsInternationalShipment = isInternational,
+                    UsedByUserId = userId,
+                    Notes = $"Shipment #{shipment.ShipmentID}, Batch #{batchId}"
+                };
+                _context.FilterPaperUsages.Add(usage);
+
+                // Deplete if no spots remaining (REQ-SPL-03)
+                if (specimen.RemainingSpots <= 0)
+                {
+                    specimen.Status = "Depleted";
+                }
+                else
+                {
+                    // Filter paper with remaining spots stays In-Stock (partial shipment)
+                    request.Status = "Shipped";
+                    var content = new ShipmentContent
+                    {
+                        ShipmentID = shipment.ShipmentID,
+                        SpecimenID = specimen.SpecimenID,
+                        SpotsUsed = spotsUsed
+                    };
+                    _context.ShipmentContents.Add(content);
+                    continue;
+                }
+            }
+
+            specimen.Status = specimen.Status == "Depleted" ? "Depleted" : "Shipped";
             request.Status = "Shipped";
 
-            var content = new ShipmentContent
+            var shipContent = new ShipmentContent
             {
                 ShipmentID = shipment.ShipmentID,
-                SpecimenID = specimen.SpecimenID
+                SpecimenID = specimen.SpecimenID,
+                SpotsUsed = spotsUsed > 0 ? spotsUsed : null
             };
-            _context.ShipmentContents.Add(content);
+            _context.ShipmentContents.Add(shipContent);
         }
 
         batch.Status = "Shipped";
         await _context.SaveChangesAsync();
 
+        // Link FilterPaperUsage records to their ShipmentContent
+        var contentIds = await _context.ShipmentContents
+            .Where(sc => sc.ShipmentID == shipment.ShipmentID)
+            .ToListAsync();
+        var usages = await _context.FilterPaperUsages
+            .Where(u => u.Notes != null && u.Notes.Contains($"Shipment #{shipment.ShipmentID}"))
+            .ToListAsync();
+        foreach (var usage in usages)
+        {
+            var matchingContent = contentIds.FirstOrDefault(c => c.SpecimenID == usage.SpecimenID);
+            if (matchingContent != null)
+                usage.ShipmentContentID = matchingContent.ShipmentContentID;
+        }
+        await _context.SaveChangesAsync();
+
         await _auditService.LogChangeAsync("tbl_Shipments", shipment.ShipmentID.ToString(),
-            "Created", null, $"Batch {batchId}, Courier: {courier}", userId);
+            "Created", null, $"Batch {batchId}, Courier: {courier}, International: {isInternational}", userId);
 
         return shipment;
     }
