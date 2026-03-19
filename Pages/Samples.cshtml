@@ -60,7 +60,7 @@
                 <td>
                     @if (item.Box != null)
                     {
-                        <a asp-page="/Boxes/Search" asp-route-label="@item.Box.BoxLabel">@item.Box.BoxLabel</a>
+                        <a asp-page="/Boxes/Search" asp-route-boxLabel="@item.Box.BoxLabel">@item.Box.BoxLabel</a>
                     }
                 </td>
                 <td>@item.PositionRow-@item.PositionCol</td>

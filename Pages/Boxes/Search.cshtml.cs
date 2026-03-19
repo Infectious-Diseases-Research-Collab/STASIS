@@ -25,6 +25,7 @@ namespace STASIS.Pages.Boxes
         public int? RackId { get; set; }
 
         public List<Box> Boxes { get; set; } = new();
+        public List<string> AllBoxLabels { get; set; } = new();
         public SelectList FreezerOptions { get; set; } = new SelectList(Enumerable.Empty<object>());
 
         // Selected box for detail view
@@ -36,11 +37,18 @@ namespace STASIS.Pages.Boxes
         {
             var freezers = await _storageService.GetAllFreezers();
             FreezerOptions = new SelectList(freezers, "FreezerID", "FreezerName");
+            AllBoxLabels = await _storageService.GetAllBoxLabelsAsync();
 
             bool hasFilter = !string.IsNullOrEmpty(BoxLabel) || FreezerId.HasValue || RackId.HasValue;
             if (hasFilter)
             {
                 Boxes = await _storageService.SearchBoxesAsync(BoxLabel, FreezerId, RackId);
+
+                // Auto-select when navigating from a link with an exact label match
+                if (!SelectedBoxId.HasValue && Boxes.Count == 1)
+                {
+                    SelectedBoxId = Boxes[0].BoxID;
+                }
             }
 
             if (SelectedBoxId.HasValue)

@@ -40,6 +40,14 @@ public class StorageService : IStorageService
             .FirstOrDefaultAsync(b => b.BoxID == boxId);
     }
 
+    public async Task<List<string>> GetAllBoxLabelsAsync()
+    {
+        return await _context.Boxes
+            .OrderBy(b => b.BoxLabel)
+            .Select(b => b.BoxLabel)
+            .ToListAsync();
+    }
+
     public async Task<List<Box>> SearchBoxesAsync(string? label, int? freezerId, int? rackId)
     {
         var query = _context.Boxes

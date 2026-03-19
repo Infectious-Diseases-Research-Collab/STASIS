@@ -5,11 +5,11 @@ set -e
 
 echo "🐘 Starting STASIS Database Setup..."
 
-# 1. Create the user using your current Mac login as the admin
+# 1. Create the user using your OS login as the PostgreSQL superuser (macOS default)
 echo "👤 Setting up user 'stasis_app'..."
 psql -U $(whoami) -d postgres -f 00_STASIS_create_db_user.sql
 
-# 2. Create the database using your current Mac login as the admin
+# 2. Create the database
 echo "🗄️ Creating database 'stasis'..."
 psql -U $(whoami) -d postgres -c "CREATE DATABASE stasis OWNER stasis_app;" 2>/dev/null || echo "ℹ️ Database already exists, skipping."
 

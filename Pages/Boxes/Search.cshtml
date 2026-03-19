@@ -8,7 +8,14 @@
 
 <form method="get" class="row g-2 mb-4">
     <div class="col-md-4">
-        <input asp-for="BoxLabel" class="form-control" placeholder="Box label" autofocus />
+        <input asp-for="BoxLabel" class="form-control" placeholder="Box label" autofocus
+               list="boxLabelList" autocomplete="off" />
+        <datalist id="boxLabelList">
+            @foreach (var label in Model.AllBoxLabels)
+            {
+                <option value="@label" />
+            }
+        </datalist>
     </div>
     <div class="col-md-3">
         <select asp-for="FreezerId" asp-items="Model.FreezerOptions" class="form-select">

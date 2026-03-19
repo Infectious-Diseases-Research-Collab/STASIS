@@ -23,62 +23,58 @@ psql --version
 
 ### 2. Create the PostgreSQL database and apply migrations
 
+Follow these steps to initialize the local development database. All SQL scripts are in the `Database/` directory, so `cd Database` first (or prefix each file path with `Database/`).
 
-# STASIS Database Setup
+#### Quick Setup (macOS)
 
-Follow these steps to initialize the local development database. Ensure you are in the directory containing the `.sql` scripts before starting.
+On macOS the default PostgreSQL superuser is typically your OS login. The automation script uses `$(whoami)` for this:
 
-## 🚀 Quick Setup (macOS & Windows with Git Bash)
-
-If you are on a Mac or using Git Bash on Windows, run the automation script:
-
-1. **Make the script executable** (Mac only):
+1. **Make the script executable**:
    ```bash
-   chmod +x setup_db.sh
+   chmod +x Database/setup_db.sh
    ```
-2. **Run the script**:
+2. **Run the script** from the repository root:
    ```bash
-   ./setup_db.sh
+   ./Database/setup_db.sh
    ```
 
----
+#### Manual Setup (Windows CMD / PowerShell / macOS)
 
-## 🛠 Manual Setup (Windows CMD / PowerShell)
-
-If you cannot run the `.sh` script, execute these commands in order:
+On Windows the default PostgreSQL superuser is `postgres`. On macOS you can substitute your OS username or `postgres` if you configured it that way.
 
 1. **Create the Role**:
-   ```powershell
-   psql -U postgres -f 00_STASIS_create_db_user.sql
+   ```bash
+   psql -U postgres -f Database/00_STASIS_create_db_user.sql
    ```
 
 2. **Create the Database**:
-   ```powershell
-   psql -U postgres -c "CREATE DATABASE stasis_db OWNER stasis_app;"
+   ```bash
+   psql -U postgres -c "CREATE DATABASE stasis OWNER stasis_app;"
    ```
-   *Note: If the database already exists, you can ignore the error.*
+   *If the database already exists you can ignore the error.*
 
 3. **Initialize Schema**:
-   ```powershell
-   psql -U stasis_app -d stasis_db -f 01_STASIS_create_tables_postgres.sql
+   ```bash
+   psql -U stasis_app -d stasis -f Database/01_STASIS_create_tables_postgres.sql
    ```
 
----
-
-## 📝 Configuration Details
-* **Default Superuser**: `postgres`
+#### Configuration Details
+* **Default Superuser**: `postgres` (Windows) or your OS login (macOS)
 * **Application User**: `stasis_app`
-* **Database Name**: `stasis_db`
+* **Database Name**: `stasis`
 * **Schema**: `public`
 
+#### Apply EF Core migrations
 
-Apply the EF Core migrations to create the schema and seed data. Run from the repository root after setting user secrets (step 3):
+Run from the repository root after setting user secrets (step 3):
 
 ```bash
 dotnet ef database update --project STASIS.csproj
 ```
 
-**Existing database (created by the bootstrap script):** If you already applied `STASIS_create_tables_postgres.sql`, mark the initial migration as already applied without re-running it:
+**Existing database (created by the bootstrap script):** If you already applied the SQL scripts above, mark the initial migration as already applied so EF doesn't try to re-create the tables.
+
+On **macOS / Linux / Git Bash**:
 
 ```bash
 psql -U stasis_app -d stasis -c "
@@ -92,6 +88,14 @@ psql -U stasis_app -d stasis -c "
   ON CONFLICT DO NOTHING;
 "
 ```
+
+On **Windows CMD or PowerShell**, save the SQL to a file and run it:
+
+```powershell
+psql -U stasis_app -d stasis -f Database/mark_initial_migration.sql
+```
+
+This file is already included in the repository at `Database/mark_initial_migration.sql`.
 
 
 ### 3. Configure the application
