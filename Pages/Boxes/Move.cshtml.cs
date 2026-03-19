@@ -91,18 +91,24 @@ namespace STASIS.Pages.Boxes
             var allBoxes = new List<Box>();
             foreach (var f in freezers)
             {
-                var racks = await _storageService.GetRacksByFreezer(f.FreezerID);
-                foreach (var r in racks)
+                var compartments = await _storageService.GetCompartmentsByFreezer(f.FreezerID);
+                foreach (var c in compartments)
                 {
-                    var boxes = await _storageService.GetBoxesByRack(r.RackID);
-                    foreach (var b in boxes) { b.Rack = r; r.Freezer = f; }
-                    allBoxes.AddRange(boxes);
+                    c.Freezer = f;
+                    var racks = await _storageService.GetRacksByCompartment(c.CompartmentID);
+                    foreach (var r in racks)
+                    {
+                        r.Compartment = c;
+                        var boxes = await _storageService.GetBoxesByRack(r.RackID);
+                        foreach (var b in boxes) { b.Rack = r; }
+                        allBoxes.AddRange(boxes);
+                    }
                 }
             }
             BoxOptions = new SelectList(
                 allBoxes.OrderBy(b => b.BoxLabel).Select(b => new {
                     b.BoxID,
-                    Display = $"{b.BoxLabel} ({b.Rack?.Freezer?.FreezerName} > {b.Rack?.RackName})"
+                    Display = $"{b.BoxLabel} ({b.Rack?.Compartment?.Freezer?.FreezerName} > {b.Rack?.Compartment?.CompartmentName} > {b.Rack?.RackName})"
                 }), "BoxID", "Display");
         }
     }

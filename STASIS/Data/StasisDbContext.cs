@@ -14,6 +14,7 @@ public class StasisDbContext : IdentityDbContext
     public DbSet<SampleType> SampleTypes { get; set; }
     public DbSet<UserProfile> UserProfiles { get; set; }
     public DbSet<Freezer> Freezers { get; set; }
+    public DbSet<Compartment> Compartments { get; set; }
     public DbSet<Rack> Racks { get; set; }
     public DbSet<Box> Boxes { get; set; }
     public DbSet<Specimen> Specimens { get; set; }
@@ -33,6 +34,7 @@ public class StasisDbContext : IdentityDbContext
         modelBuilder.Entity<SampleType>().ToTable("tbl_SampleTypes");
         modelBuilder.Entity<UserProfile>().ToTable("tbl_UserProfiles");
         modelBuilder.Entity<Freezer>().ToTable("tbl_Freezers");
+        modelBuilder.Entity<Compartment>().ToTable("tbl_Compartments");
         modelBuilder.Entity<Rack>().ToTable("tbl_Racks");
         modelBuilder.Entity<Box>().ToTable("tbl_Boxes");
         modelBuilder.Entity<Specimen>().ToTable("tbl_Specimens");
@@ -51,6 +53,22 @@ public class StasisDbContext : IdentityDbContext
         modelBuilder.Entity<Freezer>()
             .HasIndex(f => f.FreezerName)
             .IsUnique();
+
+        modelBuilder.Entity<Compartment>()
+            .HasIndex(c => new { c.FreezerID, c.CompartmentName })
+            .IsUnique();
+
+        modelBuilder.Entity<Compartment>()
+            .HasOne(c => c.Freezer)
+            .WithMany(f => f.Compartments)
+            .HasForeignKey(c => c.FreezerID)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<Rack>()
+            .HasOne(r => r.Compartment)
+            .WithMany(c => c.Racks)
+            .HasForeignKey(r => r.CompartmentID)
+            .OnDelete(DeleteBehavior.Restrict);
 
         modelBuilder.Entity<Box>()
             .HasIndex(b => b.BoxLabel)

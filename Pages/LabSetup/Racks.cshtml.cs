@@ -22,6 +22,7 @@ namespace STASIS.Pages.LabSetup
 
         public List<Rack> Racks { get; set; } = new();
         public SelectList FreezerOptions { get; set; } = new SelectList(Enumerable.Empty<object>());
+        public SelectList CompartmentOptions { get; set; } = new SelectList(Enumerable.Empty<object>());
 
         [BindProperty]
         public RackInputModel Input { get; set; } = new();
@@ -34,13 +35,16 @@ namespace STASIS.Pages.LabSetup
             [StringLength(100)]
             public string RackName { get; set; } = string.Empty;
 
-            public int? FreezerID { get; set; }
+            [StringLength(500)]
+            public string? Description { get; set; }
+
+            public int? CompartmentID { get; set; }
         }
 
         public async Task OnGetAsync()
         {
             Racks = await _labSetupService.GetAllRacksAsync();
-            await LoadFreezersAsync();
+            await LoadOptionsAsync();
         }
 
         public async Task<IActionResult> OnPostAddAsync()
@@ -48,14 +52,15 @@ namespace STASIS.Pages.LabSetup
             if (!ModelState.IsValid)
             {
                 Racks = await _labSetupService.GetAllRacksAsync();
-                await LoadFreezersAsync();
+                await LoadOptionsAsync();
                 return Page();
             }
 
             var rack = new Rack
             {
                 RackName = Input.RackName,
-                FreezerID = Input.FreezerID
+                Description = Input.Description,
+                CompartmentID = Input.CompartmentID
             };
 
             await _labSetupService.AddRackAsync(rack);
@@ -73,7 +78,7 @@ namespace STASIS.Pages.LabSetup
             if (!ModelState.IsValid || Input.RackID == null)
             {
                 Racks = await _labSetupService.GetAllRacksAsync();
-                await LoadFreezersAsync();
+                await LoadOptionsAsync();
                 return Page();
             }
 
@@ -82,7 +87,8 @@ namespace STASIS.Pages.LabSetup
 
             var oldName = existing.RackName;
             existing.RackName = Input.RackName;
-            existing.FreezerID = Input.FreezerID;
+            existing.Description = Input.Description;
+            existing.CompartmentID = Input.CompartmentID;
 
             await _labSetupService.UpdateRackAsync(existing);
 
@@ -106,10 +112,22 @@ namespace STASIS.Pages.LabSetup
             return RedirectToPage();
         }
 
-        private async Task LoadFreezersAsync()
+        public async Task<IActionResult> OnGetCompartmentsAsync(int freezerId)
+        {
+            var compartments = await _labSetupService.GetCompartmentsByFreezerAsync(freezerId);
+            return new JsonResult(compartments.Select(c => new { c.CompartmentID, c.CompartmentName }));
+        }
+
+        private async Task LoadOptionsAsync()
         {
             var freezers = await _labSetupService.GetAllFreezersAsync();
             FreezerOptions = new SelectList(freezers, "FreezerID", "FreezerName");
+
+            var compartments = await _labSetupService.GetAllCompartmentsAsync();
+            CompartmentOptions = new SelectList(compartments.Select(c => new {
+                c.CompartmentID,
+                Display = $"{c.Freezer?.FreezerName} > {c.CompartmentName}"
+            }), "CompartmentID", "Display");
         }
     }
 }

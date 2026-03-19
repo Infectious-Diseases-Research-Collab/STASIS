@@ -48,9 +48,15 @@ namespace STASIS.Pages.Boxes
             return RedirectToPage();
         }
 
-        public async Task<IActionResult> OnGetRacksAsync(int freezerId)
+        public async Task<IActionResult> OnGetCompartmentsAsync(int freezerId)
         {
-            var racks = await _storageService.GetRacksByFreezer(freezerId);
+            var compartments = await _storageService.GetCompartmentsByFreezer(freezerId);
+            return new JsonResult(compartments.Select(c => new { c.CompartmentID, c.CompartmentName }));
+        }
+
+        public async Task<IActionResult> OnGetRacksAsync(int compartmentId)
+        {
+            var racks = await _storageService.GetRacksByCompartment(compartmentId);
             return new JsonResult(racks.Select(r => new { r.RackID, r.RackName }));
         }
 

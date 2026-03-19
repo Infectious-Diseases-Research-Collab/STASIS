@@ -37,6 +37,7 @@
                 <th>Type</th>
                 <th>Category</th>
                 <th>Freezer</th>
+                <th>Compartment</th>
                 <th>Rack</th>
                 <th>Specimens</th>
                 <th></th>
@@ -49,7 +50,8 @@
                     <td>@box.BoxLabel</td>
                     <td>@box.BoxType</td>
                     <td>@box.BoxCategory</td>
-                    <td>@(box.Rack?.Freezer?.FreezerName ?? "-")</td>
+                    <td>@(box.Rack?.Compartment?.Freezer?.FreezerName ?? "-")</td>
+                    <td>@(box.Rack?.Compartment?.CompartmentName ?? "-")</td>
                     <td>@(box.Rack?.RackName ?? "-")</td>
                     <td>@box.Specimens.Count</td>
                     <td>
@@ -76,7 +78,7 @@
     <hr />
     <h4>@box.BoxLabel <small class="text-muted">(@box.BoxType, @box.BoxCategory)</small></h4>
     <p>
-        Location: @(box.Rack?.Freezer?.FreezerName ?? "Unassigned") &gt; @(box.Rack?.RackName ?? "Unassigned")
+        Location: @(box.Rack?.Compartment?.Freezer?.FreezerName ?? "Unassigned") &gt; @(box.Rack?.Compartment?.CompartmentName ?? "Unassigned") &gt; @(box.Rack?.RackName ?? "Unassigned")
         | Occupied: @box.Specimens.Count / @(gridSize * gridSize)
     </p>
 

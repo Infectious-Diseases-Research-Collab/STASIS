@@ -19,14 +19,14 @@ public class LabSetupService : ILabSetupService
     {
         return await _context.Freezers
             .OrderBy(f => f.FreezerName)
-            .Include(f => f.Racks)
+            .Include(f => f.Compartments)
             .ToListAsync();
     }
 
     public async Task<Freezer?> GetFreezerByIdAsync(int id)
     {
         return await _context.Freezers
-            .Include(f => f.Racks)
+            .Include(f => f.Compartments)
             .FirstOrDefaultAsync(f => f.FreezerID == id);
     }
 
@@ -45,11 +45,63 @@ public class LabSetupService : ILabSetupService
     public async Task<bool> DeleteFreezerAsync(int id)
     {
         var freezer = await _context.Freezers
-            .Include(f => f.Racks)
+            .Include(f => f.Compartments)
             .FirstOrDefaultAsync(f => f.FreezerID == id);
         if (freezer == null) return false;
-        if (freezer.Racks.Count > 0) return false; // has racks, cannot delete
+        if (freezer.Compartments.Count > 0) return false; // has compartments, cannot delete
         _context.Freezers.Remove(freezer);
+        await _context.SaveChangesAsync();
+        return true;
+    }
+
+    // Compartments
+
+    public async Task<List<Compartment>> GetAllCompartmentsAsync()
+    {
+        return await _context.Compartments
+            .Include(c => c.Freezer)
+            .Include(c => c.Racks)
+            .OrderBy(c => c.Freezer!.FreezerName)
+            .ThenBy(c => c.CompartmentName)
+            .ToListAsync();
+    }
+
+    public async Task<List<Compartment>> GetCompartmentsByFreezerAsync(int freezerId)
+    {
+        return await _context.Compartments
+            .Where(c => c.FreezerID == freezerId)
+            .OrderBy(c => c.CompartmentName)
+            .ToListAsync();
+    }
+
+    public async Task<Compartment?> GetCompartmentByIdAsync(int id)
+    {
+        return await _context.Compartments
+            .Include(c => c.Freezer)
+            .Include(c => c.Racks)
+            .FirstOrDefaultAsync(c => c.CompartmentID == id);
+    }
+
+    public async Task AddCompartmentAsync(Compartment compartment)
+    {
+        _context.Compartments.Add(compartment);
+        await _context.SaveChangesAsync();
+    }
+
+    public async Task UpdateCompartmentAsync(Compartment compartment)
+    {
+        _context.Compartments.Update(compartment);
+        await _context.SaveChangesAsync();
+    }
+
+    public async Task<bool> DeleteCompartmentAsync(int id)
+    {
+        var compartment = await _context.Compartments
+            .Include(c => c.Racks)
+            .FirstOrDefaultAsync(c => c.CompartmentID == id);
+        if (compartment == null) return false;
+        if (compartment.Racks.Count > 0) return false; // has racks, cannot delete
+        _context.Compartments.Remove(compartment);
         await _context.SaveChangesAsync();
         return true;
     }
@@ -59,8 +111,10 @@ public class LabSetupService : ILabSetupService
     public async Task<List<Rack>> GetAllRacksAsync()
     {
         return await _context.Racks
-            .Include(r => r.Freezer)
-            .OrderBy(r => r.Freezer!.FreezerName)
+            .Include(r => r.Compartment)
+            .ThenInclude(c => c!.Freezer)
+            .OrderBy(r => r.Compartment!.Freezer!.FreezerName)
+            .ThenBy(r => r.Compartment!.CompartmentName)
             .ThenBy(r => r.RackName)
             .ToListAsync();
     }
@@ -68,7 +122,8 @@ public class LabSetupService : ILabSetupService
     public async Task<Rack?> GetRackByIdAsync(int id)
     {
         return await _context.Racks
-            .Include(r => r.Freezer)
+            .Include(r => r.Compartment)
+            .ThenInclude(c => c!.Freezer)
             .FirstOrDefaultAsync(r => r.RackID == id);
     }
 

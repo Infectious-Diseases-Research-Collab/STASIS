@@ -17,16 +17,28 @@
 
 <h5 class="mt-3">Add Rack</h5>
 <form method="post" asp-page-handler="Add" class="row g-2 mb-4">
-    <div class="col-md-4">
+    <div class="col-md-3">
         <input asp-for="Input.RackName" class="form-control" placeholder="Rack name *" />
         <span asp-validation-for="Input.RackName" class="text-danger small"></span>
     </div>
-    <div class="col-md-4">
-        <select asp-for="Input.FreezerID" asp-items="Model.FreezerOptions" class="form-select">
-            <option value="">— No freezer assigned —</option>
+    <div class="col-md-3">
+        <select id="addFreezerSelect" class="form-select">
+            <option value="">— Select freezer —</option>
+            @foreach (var item in Model.FreezerOptions)
+            {
+                <option value="@item.Value">@item.Text</option>
+            }
+        </select>
+    </div>
+    <div class="col-md-3">
+        <select asp-for="Input.CompartmentID" id="addCompartmentSelect" class="form-select">
+            <option value="">— Select compartment —</option>
         </select>
     </div>
     <div class="col-md-2">
+        <input asp-for="Input.Description" class="form-control" placeholder="Description" />
+    </div>
+    <div class="col-md-1">
         <button type="submit" class="btn btn-primary w-100">Add</button>
     </div>
 </form>
@@ -43,6 +55,8 @@ else
             <tr>
                 <th>Name</th>
                 <th>Freezer</th>
+                <th>Compartment</th>
+                <th>Description</th>
                 <th>Boxes</th>
                 <th style="width:180px"></th>
             </tr>
@@ -52,7 +66,9 @@ else
             {
                 <tr>
                     <td>@r.RackName</td>
-                    <td>@(r.Freezer?.FreezerName ?? "-")</td>
+                    <td>@(r.Compartment?.Freezer?.FreezerName ?? "-")</td>
+                    <td>@(r.Compartment?.CompartmentName ?? "-")</td>
+                    <td>@(r.Description ?? "-")</td>
                     <td>@r.Boxes.Count</td>
                     <td>
                         <button class="btn btn-sm btn-outline-secondary"
@@ -60,7 +76,9 @@ else
                                 data-bs-target="#editModal"
                                 data-id="@r.RackID"
                                 data-name="@r.RackName"
-                                data-freezerid="@r.FreezerID">
+                                data-description="@r.Description"
+                                data-compartmentid="@r.CompartmentID"
+                                data-freezerid="@r.Compartment?.FreezerID">
                             Edit
                         </button>
                         <form method="post" asp-page-handler="Delete" asp-route-id="@r.RackID"
@@ -95,10 +113,23 @@ else
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Freezer</label>
-                        <select asp-for="Input.FreezerID" id="editFreezerId"
-                                asp-items="Model.FreezerOptions" class="form-select">
-                            <option value="">— No freezer assigned —</option>
+                        <select id="editFreezerSelect" class="form-select">
+                            <option value="">— Select freezer —</option>
+                            @foreach (var item in Model.FreezerOptions)
+                            {
+                                <option value="@item.Value">@item.Text</option>
+                            }
                         </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Compartment</label>
+                        <select asp-for="Input.CompartmentID" id="editCompartmentSelect" class="form-select">
+                            <option value="">— Select compartment —</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Description</label>
+                        <input asp-for="Input.Description" id="editDescription" class="form-control" />
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -113,12 +144,49 @@ else
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
     <script>
+        async function loadCompartments(freezerId, selectEl, preselect) {
+            selectEl.innerHTML = '<option value="">Loading...</option>';
+            if (!freezerId) {
+                selectEl.innerHTML = '<option value="">— Select freezer first —</option>';
+                return;
+            }
+            var resp = await fetch('?handler=Compartments&freezerId=' + freezerId);
+            var compartments = await resp.json();
+            selectEl.innerHTML = '<option value="">— Select —</option>';
+            compartments.forEach(function (c) {
+                var opt = document.createElement('option');
+                opt.value = c.compartmentID;
+                opt.textContent = c.compartmentName;
+                if (preselect && c.compartmentID == preselect) opt.selected = true;
+                selectEl.appendChild(opt);
+            });
+        }
+
+        // Add form cascading
+        var addFreezerSelect = document.getElementById('addFreezerSelect');
+        var addCompartmentSelect = document.getElementById('addCompartmentSelect');
+        addFreezerSelect.addEventListener('change', function () {
+            loadCompartments(this.value, addCompartmentSelect);
+        });
+
+        // Edit modal
+        var editFreezerSelect = document.getElementById('editFreezerSelect');
+        var editCompartmentSelect = document.getElementById('editCompartmentSelect');
+        editFreezerSelect.addEventListener('change', function () {
+            loadCompartments(this.value, editCompartmentSelect);
+        });
+
         document.getElementById('editModal').addEventListener('show.bs.modal', function (e) {
             var btn = e.relatedTarget;
             document.getElementById('editId').value = btn.dataset.id;
             document.getElementById('editName').value = btn.dataset.name;
-            var sel = document.getElementById('editFreezerId');
-            sel.value = btn.dataset.freezerid || '';
+            document.getElementById('editDescription').value = btn.dataset.description || '';
+            editFreezerSelect.value = btn.dataset.freezerid || '';
+            if (btn.dataset.freezerid) {
+                loadCompartments(btn.dataset.freezerid, editCompartmentSelect, btn.dataset.compartmentid);
+            } else {
+                editCompartmentSelect.innerHTML = '<option value="">— Select freezer first —</option>';
+            }
         });
     </script>
 }

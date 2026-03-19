@@ -41,7 +41,7 @@
                 <strong>Current Location:</strong>
                 @if (s.Box != null)
                 {
-                    <span>@(s.Box.Rack?.Freezer?.FreezerName ?? "?") &gt; @(s.Box.Rack?.RackName ?? "?") &gt; @s.Box.BoxLabel</span>
+                    <span>@(s.Box.Rack?.Compartment?.Freezer?.FreezerName ?? "?") &gt; @(s.Box.Rack?.Compartment?.CompartmentName ?? "?") &gt; @(s.Box.Rack?.RackName ?? "?") &gt; @s.Box.BoxLabel</span>
                     if (s.PositionRow.HasValue)
                     {
                         <span> — Position (@s.PositionRow, @s.PositionCol)</span>

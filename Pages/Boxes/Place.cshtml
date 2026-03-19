@@ -42,7 +42,7 @@
                 <strong>Current Location:</strong>
                 @if (box.Rack != null)
                 {
-                    <span>@(box.Rack.Freezer?.FreezerName ?? "?") &gt; @box.Rack.RackName</span>
+                    <span>@(box.Rack.Compartment?.Freezer?.FreezerName ?? "?") &gt; @(box.Rack.Compartment?.CompartmentName ?? "?") &gt; @box.Rack.RackName</span>
                 }
                 else
                 {
@@ -56,7 +56,7 @@
     <form method="post" class="row g-2" style="max-width:600px;">
         <input type="hidden" asp-for="BoxId" value="@box.BoxID" />
         <input type="hidden" asp-for="BoxLabel" />
-        <div class="col-md-5">
+        <div class="col-md-4">
             <label class="form-label">Freezer</label>
             <select id="freezerSelect" class="form-select">
                 <option value="">— Select —</option>
@@ -66,10 +66,16 @@
                 }
             </select>
         </div>
-        <div class="col-md-5">
+        <div class="col-md-3">
+            <label class="form-label">Compartment</label>
+            <select id="compartmentSelect" class="form-select">
+                <option value="">— Select freezer first —</option>
+            </select>
+        </div>
+        <div class="col-md-3">
             <label class="form-label">Rack</label>
             <select asp-for="NewRackId" id="rackSelect" class="form-select">
-                <option value="">— Select freezer first —</option>
+                <option value="">— Select compartment first —</option>
             </select>
         </div>
         <div class="col-md-2 d-flex align-items-end">
@@ -81,15 +87,33 @@
 @section Scripts {
     <script>
         var freezerSelect = document.getElementById('freezerSelect');
+        var compartmentSelect = document.getElementById('compartmentSelect');
         var rackSelect = document.getElementById('rackSelect');
         if (freezerSelect) {
             freezerSelect.addEventListener('change', async function () {
-                rackSelect.innerHTML = '<option value="">Loading...</option>';
+                compartmentSelect.innerHTML = '<option value="">Loading...</option>';
+                rackSelect.innerHTML = '<option value="">— Select compartment first —</option>';
                 if (!this.value) {
-                    rackSelect.innerHTML = '<option value="">— Select freezer first —</option>';
+                    compartmentSelect.innerHTML = '<option value="">— Select freezer first —</option>';
                     return;
                 }
-                var resp = await fetch('?handler=Racks&freezerId=' + this.value);
+                var resp = await fetch('?handler=Compartments&freezerId=' + this.value);
+                var compartments = await resp.json();
+                compartmentSelect.innerHTML = '<option value="">— Select —</option>';
+                compartments.forEach(function (c) {
+                    var opt = document.createElement('option');
+                    opt.value = c.compartmentID;
+                    opt.textContent = c.compartmentName;
+                    compartmentSelect.appendChild(opt);
+                });
+            });
+            compartmentSelect.addEventListener('change', async function () {
+                rackSelect.innerHTML = '<option value="">Loading...</option>';
+                if (!this.value) {
+                    rackSelect.innerHTML = '<option value="">— Select compartment first —</option>';
+                    return;
+                }
+                var resp = await fetch('?handler=Racks&compartmentId=' + this.value);
                 var racks = await resp.json();
                 rackSelect.innerHTML = '<option value="">— Select —</option>';
                 racks.forEach(function (r) {

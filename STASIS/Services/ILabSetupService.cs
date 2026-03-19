@@ -11,6 +11,14 @@ public interface ILabSetupService
     Task UpdateFreezerAsync(Freezer freezer);
     Task<bool> DeleteFreezerAsync(int id);
 
+    // Compartments
+    Task<List<Compartment>> GetAllCompartmentsAsync();
+    Task<List<Compartment>> GetCompartmentsByFreezerAsync(int freezerId);
+    Task<Compartment?> GetCompartmentByIdAsync(int id);
+    Task AddCompartmentAsync(Compartment compartment);
+    Task UpdateCompartmentAsync(Compartment compartment);
+    Task<bool> DeleteCompartmentAsync(int id);
+
     // Racks
     Task<List<Rack>> GetAllRacksAsync();
     Task<Rack?> GetRackByIdAsync(int id);

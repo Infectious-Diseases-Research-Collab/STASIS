@@ -71,13 +71,16 @@
                     <div class="container">
                         <strong>Location Details:</strong>
                         <div class="row">
-                            <div class="col-md-4">
-                                <strong>Freezer:</strong> @(item.Box?.Rack?.Freezer?.FreezerName)
+                            <div class="col-md-3">
+                                <strong>Freezer:</strong> @(item.Box?.Rack?.Compartment?.Freezer?.FreezerName)
                             </div>
-                            <div class="col-md-4">
+                            <div class="col-md-3">
+                                <strong>Compartment:</strong> @(item.Box?.Rack?.Compartment?.CompartmentName)
+                            </div>
+                            <div class="col-md-3">
                                 <strong>Rack:</strong> @(item.Box?.Rack?.RackName)
                             </div>
-                            <div class="col-md-4">
+                            <div class="col-md-3">
                                 <strong>Collection Date:</strong> @Html.DisplayFor(modelItem => item.CollectionDate)
                             </div>
                         </div>

@@ -20,9 +20,20 @@ public class StorageService : IStorageService
         return await _context.Freezers.OrderBy(f => f.FreezerName).ToListAsync();
     }
 
-    public async Task<List<Rack>> GetRacksByFreezer(int freezerId)
+    public async Task<List<Compartment>> GetCompartmentsByFreezer(int freezerId)
     {
-        return await _context.Racks.Where(r => r.FreezerID == freezerId).ToListAsync();
+        return await _context.Compartments
+            .Where(c => c.FreezerID == freezerId)
+            .OrderBy(c => c.CompartmentName)
+            .ToListAsync();
+    }
+
+    public async Task<List<Rack>> GetRacksByCompartment(int compartmentId)
+    {
+        return await _context.Racks
+            .Where(r => r.CompartmentID == compartmentId)
+            .OrderBy(r => r.RackName)
+            .ToListAsync();
     }
 
     public async Task<List<Box>> GetBoxesByRack(int rackId)
@@ -34,7 +45,8 @@ public class StorageService : IStorageService
     {
         return await _context.Boxes
             .Include(b => b.Rack)
-            .ThenInclude(r => r!.Freezer)
+            .ThenInclude(r => r!.Compartment)
+            .ThenInclude(c => c!.Freezer)
             .Include(b => b.Specimens)
             .ThenInclude(s => s.SampleType)
             .FirstOrDefaultAsync(b => b.BoxID == boxId);
@@ -52,7 +64,8 @@ public class StorageService : IStorageService
     {
         var query = _context.Boxes
             .Include(b => b.Rack)
-            .ThenInclude(r => r!.Freezer)
+            .ThenInclude(r => r!.Compartment)
+            .ThenInclude(c => c!.Freezer)
             .Include(b => b.Specimens)
             .AsQueryable();
 
@@ -60,7 +73,7 @@ public class StorageService : IStorageService
             query = query.Where(b => b.BoxLabel.Contains(label));
 
         if (freezerId.HasValue)
-            query = query.Where(b => b.Rack != null && b.Rack.FreezerID == freezerId.Value);
+            query = query.Where(b => b.Rack != null && b.Rack.Compartment != null && b.Rack.Compartment.FreezerID == freezerId.Value);
 
         if (rackId.HasValue)
             query = query.Where(b => b.RackID == rackId.Value);
@@ -72,7 +85,8 @@ public class StorageService : IStorageService
     {
         return await _context.Boxes
             .Include(b => b.Rack)
-            .ThenInclude(r => r!.Freezer)
+            .ThenInclude(r => r!.Compartment)
+            .ThenInclude(c => c!.Freezer)
             .Include(b => b.Specimens)
             .ThenInclude(s => s.SampleType)
             .FirstOrDefaultAsync(b => b.BoxLabel == label);

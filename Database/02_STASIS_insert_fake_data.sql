@@ -20,18 +20,25 @@ VALUES
     ('Whole Blood', false, NULL, NULL),
     ('Filter Paper', true, 2, 2);
 
-INSERT INTO "tbl_Freezers" ("FreezerName", "Temperature", "LocationInBuilding")
+INSERT INTO "tbl_Freezers" ("FreezerName", "Description", "Temperature", "LocationInBuilding")
 VALUES
-    ('-80 Freezer A', -80, 'Room 101'),
-    ('-20 Freezer B', -20, 'Room 102');
+    ('-80 Freezer A', 'Main ultra-low freezer', -80, 'Room 101'),
+    ('-20 Freezer B', 'Secondary freezer for short-term storage', -20, 'Room 102');
 
-INSERT INTO "tbl_Racks" ("RackName", "FreezerID")
+INSERT INTO "tbl_Compartments" ("CompartmentName", "Description", "FreezerID")
 VALUES
-    ('Rack 1', 1),
-    ('Rack 2', 1),
-    ('Rack 3', 1),
-    ('Rack 4', 1),
-    ('Shelf 1', 2);
+    ('Top Shelf', 'Upper section of -80 Freezer A', 1),
+    ('Middle Shelf', 'Middle section of -80 Freezer A', 1),
+    ('Bottom Shelf', 'Lower section of -80 Freezer A', 1),
+    ('Main Compartment', NULL, 2);
+
+INSERT INTO "tbl_Racks" ("RackName", "Description", "CompartmentID")
+VALUES
+    ('Rack 1', NULL, 1),
+    ('Rack 2', NULL, 1),
+    ('Rack 3', NULL, 2),
+    ('Rack 4', NULL, 2),
+    ('Shelf 1', 'Single shelf for filter paper binders', 4);
 
 INSERT INTO "tbl_Boxes" ("BoxLabel", "BoxType", "BoxCategory", "RackID")
 VALUES

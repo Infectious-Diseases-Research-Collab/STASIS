@@ -36,6 +36,9 @@ namespace STASIS.Pages.LabSetup
 
             [StringLength(200)]
             public string? LocationInBuilding { get; set; }
+
+            [StringLength(500)]
+            public string? Description { get; set; }
         }
 
         public async Task OnGetAsync()
@@ -55,7 +58,8 @@ namespace STASIS.Pages.LabSetup
             {
                 FreezerName = Input.FreezerName,
                 Temperature = Input.Temperature,
-                LocationInBuilding = Input.LocationInBuilding
+                LocationInBuilding = Input.LocationInBuilding,
+                Description = Input.Description
             };
 
             await _labSetupService.AddFreezerAsync(freezer);
@@ -83,6 +87,7 @@ namespace STASIS.Pages.LabSetup
             existing.FreezerName = Input.FreezerName;
             existing.Temperature = Input.Temperature;
             existing.LocationInBuilding = Input.LocationInBuilding;
+            existing.Description = Input.Description;
 
             await _labSetupService.UpdateFreezerAsync(existing);
 
@@ -99,7 +104,7 @@ namespace STASIS.Pages.LabSetup
         {
             var deleted = await _labSetupService.DeleteFreezerAsync(id);
             if (!deleted)
-                TempData["Error"] = "Cannot delete freezer — it still has racks assigned to it.";
+                TempData["Error"] = "Cannot delete freezer — it still has compartments assigned to it.";
             else
                 TempData["Success"] = "Freezer deleted.";
 

@@ -23,7 +23,8 @@ public class SampleService : ISampleService
             .Include(s => s.SampleType)
             .Include(s => s.Box)
                 .ThenInclude(b => b!.Rack)
-                .ThenInclude(r => r!.Freezer)
+                .ThenInclude(r => r!.Compartment)
+                .ThenInclude(c => c!.Freezer)
             .AsQueryable();
 
         if (!string.IsNullOrEmpty(searchString))
@@ -67,7 +68,8 @@ public class SampleService : ISampleService
             .Include(s => s.SampleType)
             .Include(s => s.Box)
             .ThenInclude(b => b!.Rack)
-            .ThenInclude(r => r!.Freezer)
+            .ThenInclude(r => r!.Compartment)
+            .ThenInclude(c => c!.Freezer)
             .FirstOrDefaultAsync(s => s.BarcodeID == barcode);
     }
 
@@ -310,7 +312,8 @@ public class SampleService : ISampleService
             .Include(s => s.SampleType)
             .Include(s => s.Box)
                 .ThenInclude(b => b!.Rack)
-                    .ThenInclude(r => r!.Freezer)
+                    .ThenInclude(r => r!.Compartment)
+                    .ThenInclude(c => c!.Freezer)
             .Include(s => s.DiscardApproval)
             .FirstOrDefaultAsync(s => s.SpecimenID == specimenId);
     }
@@ -449,7 +452,8 @@ public class SampleService : ISampleService
             .Include(s => s.SampleType)
             .Include(s => s.Box)
                 .ThenInclude(b => b!.Rack)
-                    .ThenInclude(r => r!.Freezer)
+                    .ThenInclude(r => r!.Compartment)
+                    .ThenInclude(c => c!.Freezer)
             .Include(s => s.DiscardApproval)
             .Include(s => s.FilterPaperUsages)
                 .ThenInclude(u => u.UsedByUser)

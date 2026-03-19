@@ -148,20 +148,24 @@ namespace STASIS.Pages.Samples
             SampleTypeOptions = new SelectList(SampleTypes, "SampleTypeID", "TypeName");
 
             var freezers = await _storageService.GetAllFreezers();
-            // Load all boxes for selection — we use JS to filter by rack/freezer if needed
             var allBoxes = new List<Box>();
             foreach (var freezer in freezers)
             {
-                var racks = await _storageService.GetRacksByFreezer(freezer.FreezerID);
-                foreach (var rack in racks)
+                var compartments = await _storageService.GetCompartmentsByFreezer(freezer.FreezerID);
+                foreach (var compartment in compartments)
                 {
-                    var boxes = await _storageService.GetBoxesByRack(rack.RackID);
-                    foreach (var box in boxes)
+                    compartment.Freezer = freezer;
+                    var racks = await _storageService.GetRacksByCompartment(compartment.CompartmentID);
+                    foreach (var rack in racks)
                     {
-                        box.Rack = rack;
-                        rack.Freezer = freezer;
+                        rack.Compartment = compartment;
+                        var boxes = await _storageService.GetBoxesByRack(rack.RackID);
+                        foreach (var box in boxes)
+                        {
+                            box.Rack = rack;
+                        }
+                        allBoxes.AddRange(boxes);
                     }
-                    allBoxes.AddRange(boxes);
                 }
             }
 
@@ -169,7 +173,7 @@ namespace STASIS.Pages.Samples
                 allBoxes.OrderBy(b => b.BoxLabel).Select(b => new
                 {
                     b.BoxID,
-                    Display = $"{b.BoxLabel} ({b.Rack?.Freezer?.FreezerName} > {b.Rack?.RackName})",
+                    Display = $"{b.BoxLabel} ({b.Rack?.Compartment?.Freezer?.FreezerName} > {b.Rack?.Compartment?.CompartmentName} > {b.Rack?.RackName})",
                     b.BoxType
                 }),
                 "BoxID", "Display");

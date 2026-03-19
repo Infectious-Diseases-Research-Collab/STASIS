@@ -77,7 +77,7 @@ dotnet ef database update --project STASIS.csproj
 - **Authentication/Authorization:** All routes require authentication via a fallback policy. `PasswordChangeFilter` forces a password change on first login. Roles: `Read`, `Write`, `Admin`.
 - **Data access:** Services (`ISampleService`, `IStorageService`) are injected into page models; never call `DbContext` directly from page models.
 - **Naming:** Tables use `tbl_` prefix (e.g., `tbl_Specimens`). EF entities are mapped explicitly in `OnModelCreating`. Check constraints and unique indexes are defined there.
-- **Storage hierarchy:** `Freezer → Rack → Box → Specimen (PositionRow/PositionCol)`. A unique index on `(BoxID, PositionRow, PositionCol)` enforces conflict detection at the DB level.
+- **Storage hierarchy:** `Freezer → Compartment → Rack → Box → Specimen (PositionRow/PositionCol)`. A unique index on `(BoxID, PositionRow, PositionCol)` enforces conflict detection at the DB level. Compartments have a unique index on `(FreezerID, CompartmentName)`.
 - **Special sample rules:** Filter Paper specimens track `RemainingSpots`, `SpotsShippedInternational`, `SpotsReservedLocal`. Plasma specimens use `AliquotNumber` (1 or 2). These rules are domain-critical but mostly unimplemented in services.
 
 ## Implementation Status

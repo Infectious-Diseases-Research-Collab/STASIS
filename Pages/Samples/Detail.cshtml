@@ -43,9 +43,13 @@
             @if (s.Box?.Rack != null)
             {
                 <tr><td>Rack</td><td>@s.Box.Rack.RackName</td></tr>
-                @if (s.Box.Rack.Freezer != null)
+                @if (s.Box.Rack.Compartment != null)
                 {
-                    <tr><td>Freezer</td><td>@s.Box.Rack.Freezer.FreezerName</td></tr>
+                    <tr><td>Compartment</td><td>@s.Box.Rack.Compartment.CompartmentName</td></tr>
+                    @if (s.Box.Rack.Compartment.Freezer != null)
+                    {
+                        <tr><td>Freezer</td><td>@s.Box.Rack.Compartment.Freezer.FreezerName</td></tr>
+                    }
                 }
             }
             @if (s.DiscardApproval != null)
