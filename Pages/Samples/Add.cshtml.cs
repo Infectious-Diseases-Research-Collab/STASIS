@@ -43,6 +43,10 @@ namespace STASIS.Pages.Samples
             [Display(Name = "Legacy ID")]
             public string? LegacyID { get; set; }
 
+            [StringLength(100)]
+            [Display(Name = "Participant ID")]
+            public string? ParticipantID { get; set; }
+
             [Display(Name = "Study")]
             public int? StudyID { get; set; }
 
@@ -64,6 +68,9 @@ namespace STASIS.Pages.Samples
 
             [Display(Name = "Aliquot Number")]
             public int? AliquotNumber { get; set; }
+
+            [Display(Name = "Cell Count")]
+            public int? CellCount { get; set; }
 
             [Display(Name = "Remaining Spots")]
             public int? RemainingSpots { get; set; }
@@ -94,6 +101,7 @@ namespace STASIS.Pages.Samples
             {
                 BarcodeID = Input.BarcodeID,
                 LegacyID = Input.LegacyID,
+                ParticipantID = Input.ParticipantID,
                 StudyID = Input.StudyID,
                 SampleTypeID = Input.SampleTypeID,
                 CollectionDate = Input.CollectionDate.HasValue
@@ -103,6 +111,7 @@ namespace STASIS.Pages.Samples
                 PositionRow = Input.PositionRow,
                 PositionCol = Input.PositionCol,
                 AliquotNumber = Input.AliquotNumber,
+                CellCount = Input.CellCount,
                 RemainingSpots = Input.RemainingSpots,
                 Status = "In-Stock"
             };
