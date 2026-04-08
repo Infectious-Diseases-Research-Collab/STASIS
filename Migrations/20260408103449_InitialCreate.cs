@@ -58,6 +58,7 @@ namespace STASIS.Migrations
                     FreezerID = table.Column<int>(type: "integer", nullable: false)
                         .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
                     FreezerName = table.Column<string>(type: "text", nullable: false),
+                    Description = table.Column<string>(type: "text", nullable: true),
                     Temperature = table.Column<int>(type: "integer", nullable: true),
                     LocationInBuilding = table.Column<string>(type: "text", nullable: true)
                 },
@@ -309,22 +310,24 @@ namespace STASIS.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "tbl_Racks",
+                name: "tbl_Compartments",
                 columns: table => new
                 {
-                    RackID = table.Column<int>(type: "integer", nullable: false)
+                    CompartmentID = table.Column<int>(type: "integer", nullable: false)
                         .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
-                    RackName = table.Column<string>(type: "text", nullable: false),
-                    FreezerID = table.Column<int>(type: "integer", nullable: true)
+                    CompartmentName = table.Column<string>(type: "text", nullable: false),
+                    Description = table.Column<string>(type: "text", nullable: true),
+                    FreezerID = table.Column<int>(type: "integer", nullable: false)
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_tbl_Racks", x => x.RackID);
+                    table.PrimaryKey("PK_tbl_Compartments", x => x.CompartmentID);
                     table.ForeignKey(
-                        name: "FK_tbl_Racks_tbl_Freezers_FreezerID",
+                        name: "FK_tbl_Compartments_tbl_Freezers_FreezerID",
                         column: x => x.FreezerID,
                         principalTable: "tbl_Freezers",
-                        principalColumn: "FreezerID");
+                        principalColumn: "FreezerID",
+                        onDelete: ReferentialAction.Restrict);
                 });
 
             migrationBuilder.CreateTable(
@@ -361,6 +364,27 @@ namespace STASIS.Migrations
                         column: x => x.ApprovalID,
                         principalTable: "tbl_Approvals",
                         principalColumn: "ApprovalID",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "tbl_Racks",
+                columns: table => new
+                {
+                    RackID = table.Column<int>(type: "integer", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    RackName = table.Column<string>(type: "text", nullable: false),
+                    Description = table.Column<string>(type: "text", nullable: true),
+                    CompartmentID = table.Column<int>(type: "integer", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_tbl_Racks", x => x.RackID);
+                    table.ForeignKey(
+                        name: "FK_tbl_Racks_tbl_Compartments_CompartmentID",
+                        column: x => x.CompartmentID,
+                        principalTable: "tbl_Compartments",
+                        principalColumn: "CompartmentID",
                         onDelete: ReferentialAction.Restrict);
                 });
 
@@ -433,6 +457,7 @@ namespace STASIS.Migrations
                         .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
                     BarcodeID = table.Column<string>(type: "text", nullable: false),
                     LegacyID = table.Column<string>(type: "text", nullable: true),
+                    ParticipantID = table.Column<string>(type: "text", nullable: true),
                     StudyID = table.Column<int>(type: "integer", nullable: true),
                     SampleTypeID = table.Column<int>(type: "integer", nullable: true),
                     CollectionDate = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
@@ -663,6 +688,12 @@ namespace STASIS.Migrations
                 column: "RackID");
 
             migrationBuilder.CreateIndex(
+                name: "IX_tbl_Compartments_FreezerID_CompartmentName",
+                table: "tbl_Compartments",
+                columns: new[] { "FreezerID", "CompartmentName" },
+                unique: true);
+
+            migrationBuilder.CreateIndex(
                 name: "IX_tbl_FilterPaperUsages_ShipmentContentID",
                 table: "tbl_FilterPaperUsages",
                 column: "ShipmentContentID");
@@ -684,9 +715,9 @@ namespace STASIS.Migrations
                 unique: true);
 
             migrationBuilder.CreateIndex(
-                name: "IX_tbl_Racks_FreezerID",
+                name: "IX_tbl_Racks_CompartmentID",
                 table: "tbl_Racks",
-                column: "FreezerID");
+                column: "CompartmentID");
 
             migrationBuilder.CreateIndex(
                 name: "IX_tbl_SampleTypes_TypeName",
@@ -745,6 +776,11 @@ namespace STASIS.Migrations
                 column: "ShippedByUserId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_Specimens_ParticipantID",
+                table: "tbl_Specimens",
+                column: "ParticipantID");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_tbl_Specimens_BarcodeID",
                 table: "tbl_Specimens",
                 column: "BarcodeID",
@@ -765,6 +801,11 @@ namespace STASIS.Migrations
                 name: "IX_tbl_Specimens_SampleTypeID",
                 table: "tbl_Specimens",
                 column: "SampleTypeID");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_tbl_Specimens_Status",
+                table: "tbl_Specimens",
+                column: "Status");
 
             migrationBuilder.CreateIndex(
                 name: "IX_tbl_Specimens_StudyID",
@@ -846,6 +887,9 @@ namespace STASIS.Migrations
 
             migrationBuilder.DropTable(
                 name: "AspNetUsers");
+
+            migrationBuilder.DropTable(
+                name: "tbl_Compartments");
 
             migrationBuilder.DropTable(
                 name: "tbl_Freezers");

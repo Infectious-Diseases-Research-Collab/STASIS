@@ -758,6 +758,9 @@ namespace STASIS.Migrations
                     b.Property<string>("LegacyID")
                         .HasColumnType("text");
 
+                    b.Property<string>("ParticipantID")
+                        .HasColumnType("text");
+
                     b.Property<int?>("PositionCol")
                         .HasColumnType("integer");
 
@@ -795,6 +798,9 @@ namespace STASIS.Migrations
                         .IsUnique();
 
                     b.HasIndex("DiscardApprovalID");
+
+                    b.HasIndex("ParticipantID")
+                        .HasDatabaseName("IX_Specimens_ParticipantID");
 
                     b.HasIndex("SampleTypeID");
 

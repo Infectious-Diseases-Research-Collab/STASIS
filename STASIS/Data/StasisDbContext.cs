@@ -172,6 +172,10 @@ public class StasisDbContext : IdentityDbContext
             .HasIndex(s => s.SampleTypeID);
 
         modelBuilder.Entity<Specimen>()
+            .HasIndex(s => s.ParticipantID)
+            .HasDatabaseName("IX_Specimens_ParticipantID");
+
+        modelBuilder.Entity<Specimen>()
             .Property(s => s.Status)
             .HasDefaultValue("In-Stock");
 

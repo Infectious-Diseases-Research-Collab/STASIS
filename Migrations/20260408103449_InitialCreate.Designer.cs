@@ -12,8 +12,8 @@ using STASIS.Data;
 namespace STASIS.Migrations
 {
     [DbContext(typeof(StasisDbContext))]
-    [Migration("20260319093539_AddCompartmentHierarchy")]
-    partial class AddCompartmentHierarchy
+    [Migration("20260408103449_InitialCreate")]
+    partial class InitialCreate
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -761,6 +761,9 @@ namespace STASIS.Migrations
                     b.Property<string>("LegacyID")
                         .HasColumnType("text");
 
+                    b.Property<string>("ParticipantID")
+                        .HasColumnType("text");
+
                     b.Property<int?>("PositionCol")
                         .HasColumnType("integer");
 
@@ -798,6 +801,9 @@ namespace STASIS.Migrations
                         .IsUnique();
 
                     b.HasIndex("DiscardApprovalID");
+
+                    b.HasIndex("ParticipantID")
+                        .HasDatabaseName("IX_Specimens_ParticipantID");
 
                     b.HasIndex("SampleTypeID");
 
