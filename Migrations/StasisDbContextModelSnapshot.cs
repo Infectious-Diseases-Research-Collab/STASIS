@@ -749,6 +749,9 @@ namespace STASIS.Migrations
                     b.Property<int?>("BoxID")
                         .HasColumnType("integer");
 
+                    b.Property<int?>("CellCount")
+                        .HasColumnType("integer");
+
                     b.Property<DateTime?>("CollectionDate")
                         .HasColumnType("timestamp with time zone");
 
@@ -813,7 +816,7 @@ namespace STASIS.Migrations
 
                     b.ToTable("tbl_Specimens", null, t =>
                         {
-                            t.HasCheckConstraint("CK_Specimens_AliquotNumber", "\"AliquotNumber\" IS NULL OR \"AliquotNumber\" IN (1, 2)");
+                            t.HasCheckConstraint("CK_Specimens_AliquotNumber", "\"AliquotNumber\" IS NULL OR \"AliquotNumber\" IN (1, 2, 3)");
 
                             t.HasCheckConstraint("CK_Specimens_Status", "\"Status\" IN ('In-Stock', 'Staged', 'Shipped', 'Missing', 'Depleted', 'Discarded', 'Temp', 'Not Yet Received')");
                         });

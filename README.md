@@ -107,7 +107,9 @@ dotnet user-secrets set "ConnectionStrings:DefaultConnection" "Host=localhost;Po
 dotnet user-secrets set "AdminSeedPassword" "YOUR_ADMIN_PASSWORD"
 ```
 
-`AdminSeedPassword` is the password assigned to the seeded `admin@stasis.com` account on first startup. The app logs a warning and skips seeding if this value is not set. Choose a strong password and store it somewhere safe — you cannot recover it from the app later.
+On first startup the app automatically creates three roles (`Admin`, `Write`, `Read`) and seeds a bootstrap admin account (`admin@stasis.com`) using `AdminSeedPassword`. This account is intended for initial setup only — use it to log in, create a personal admin account for each team member via **Administration → Users**, then delete or disable the shared seed account.
+
+Choose a strong `AdminSeedPassword` and store it somewhere safe — you cannot recover it from the app later. The app logs a warning at startup and skips seeding if this value is not set.
 
 Verify the stored values if needed:
 
@@ -152,7 +154,7 @@ After completing local setup, verify the following before starting feature work:
 - [ ] `dotnet ef database update --project STASIS.csproj` reports "No pending migrations" (confirms schema is current)
 
 **Authentication**
-- [ ] Logging in with `admin@stasis.com` and the password set in `AdminSeedPassword` succeeds
+- [ ] Logging in with `admin@stasis.com` and the password set in `AdminSeedPassword` succeeds (bootstrap account — replace with personal accounts before use)
 - [ ] Attempting to access any page while logged out redirects to the login page
 - [ ] Logging out returns to the login page
 

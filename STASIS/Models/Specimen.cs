@@ -19,6 +19,7 @@ public class Specimen
     public int SpotsShippedInternational { get; set; }
     public int SpotsReservedLocal { get; set; }
     public int? AliquotNumber { get; set; }
+    public int? CellCount { get; set; }
     public int? DiscardApprovalID { get; set; }
     public Approval? DiscardApproval { get; set; }
     public string Status { get; set; } = "In-Stock";

@@ -468,13 +468,14 @@ namespace STASIS.Migrations
                     SpotsShippedInternational = table.Column<int>(type: "integer", nullable: false, defaultValue: 0),
                     SpotsReservedLocal = table.Column<int>(type: "integer", nullable: false, defaultValue: 0),
                     AliquotNumber = table.Column<int>(type: "integer", nullable: true),
+                    CellCount = table.Column<int>(type: "integer", nullable: true),
                     DiscardApprovalID = table.Column<int>(type: "integer", nullable: true),
                     Status = table.Column<string>(type: "text", nullable: false, defaultValue: "In-Stock")
                 },
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_tbl_Specimens", x => x.SpecimenID);
-                    table.CheckConstraint("CK_Specimens_AliquotNumber", "\"AliquotNumber\" IS NULL OR \"AliquotNumber\" IN (1, 2)");
+                    table.CheckConstraint("CK_Specimens_AliquotNumber", "\"AliquotNumber\" IS NULL OR \"AliquotNumber\" IN (1, 2, 3)");
                     table.CheckConstraint("CK_Specimens_Status", "\"Status\" IN ('In-Stock', 'Staged', 'Shipped', 'Missing', 'Depleted', 'Discarded', 'Temp', 'Not Yet Received')");
                     table.ForeignKey(
                         name: "FK_tbl_Specimens_tbl_Approvals_DiscardApprovalID",
