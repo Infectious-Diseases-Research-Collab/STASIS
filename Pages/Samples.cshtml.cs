@@ -30,6 +30,9 @@ namespace STASIS.Pages
         [BindProperty(SupportsGet = true)]
         public int? SampleTypeId { get; set; }
 
+        [BindProperty(SupportsGet = true)]
+        public string? ParticipantId { get; set; }
+
         public SelectList Studies { get; set; } = new SelectList(new List<Study>());
         public SelectList SampleTypes { get; set; } = new SelectList(new List<SampleType>());
 
@@ -50,7 +53,7 @@ namespace STASIS.Pages
             Studies = new SelectList(studies, nameof(Study.StudyID), nameof(Study.StudyCode), StudyId);
             SampleTypes = new SelectList(sampleTypes, nameof(SampleType.SampleTypeID), nameof(SampleType.TypeName), SampleTypeId);
 
-            var (specimens, totalCount) = await _sampleService.GetSpecimensAsync(SearchString, StudyId, SampleTypeId, PageIndex, PageSize);
+            var (specimens, totalCount) = await _sampleService.GetSpecimensAsync(SearchString, StudyId, SampleTypeId, ParticipantId, PageIndex, PageSize);
             
             Specimens = specimens;
             TotalItems = totalCount;

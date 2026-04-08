@@ -23,6 +23,7 @@
     <div class="form-actions no-color">
         <p>
             Barcode: <input type="text" name="SearchString" value="@Model.SearchString" />
+            Participant ID: <input type="text" name="ParticipantId" value="@Model.ParticipantId" />
             <input type="submit" value="Search" class="btn btn-primary" /> |
             Study: <select asp-for="StudyId" asp-items="Model.Studies" onchange="this.form.submit()">
                 <option value="">All</option>
@@ -40,6 +41,7 @@
         <tr>
             <th></th>
             <th>Barcode</th>
+            <th>Participant ID</th>
             <th>Study</th>
             <th>Sample Type</th>
             <th>Box</th>
@@ -55,6 +57,7 @@
                     <span class="expand-icon" data-bs-toggle="collapse" data-bs-target="#details-@item.SpecimenID">+</span>
                 </td>
                 <td><a asp-page="/Samples/Detail" asp-route-id="@item.SpecimenID">@item.BarcodeID</a></td>
+                <td>@(item.ParticipantID ?? "-")</td>
                 <td>@(item.Study?.StudyCode)</td>
                 <td>@(item.SampleType?.TypeName)</td>
                 <td>
@@ -67,7 +70,7 @@
                 <td>@item.Status</td>
             </tr>
             <tr class="collapse" id="details-@item.SpecimenID">
-                <td colspan="7">
+                <td colspan="8">
                     <div class="container">
                         <strong>Location Details:</strong>
                         <div class="row">
@@ -106,6 +109,7 @@
                 asp-route-searchString="@Model.SearchString"
                 asp-route-studyId="@Model.StudyId"
                 asp-route-sampleTypeId="@Model.SampleTypeId"
+                asp-route-participantId="@Model.ParticipantId"
                asp-route-pageIndex="@(Model.PageIndex - 1)"
                class="btn btn-primary @prevDisabled">
                 Previous
@@ -114,6 +118,7 @@
                 asp-route-searchString="@Model.SearchString"
                 asp-route-studyId="@Model.StudyId"
                 asp-route-sampleTypeId="@Model.SampleTypeId"
+                asp-route-participantId="@Model.ParticipantId"
                asp-route-pageIndex="@(Model.PageIndex + 1)"
                class="btn btn-primary @nextDisabled">
                 Next
