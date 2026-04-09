@@ -15,6 +15,10 @@
             {
                 <tr><td>Legacy ID</td><td>@s.LegacyID</td></tr>
             }
+            @if (!string.IsNullOrEmpty(s.ParticipantID))
+            {
+                <tr><td>Participant ID</td><td>@s.ParticipantID</td></tr>
+            }
             <tr><td>Study</td><td>@(s.Study?.StudyCode ?? "-")</td></tr>
             <tr><td>Sample Type</td><td>@(s.SampleType?.TypeName ?? "-")</td></tr>
             <tr><td>Collection Date</td><td>@(s.CollectionDate?.ToString("yyyy-MM-dd") ?? "-")</td></tr>
@@ -81,6 +85,30 @@
                         else
                         {
                             <span class="text-muted">No aliquot number assigned</span>
+                        }
+                    </td>
+                </tr>
+            </table>
+        </div>
+    </div>
+}
+
+@if (Model.IsPBMC)
+{
+    <div class="card mb-4" style="max-width:500px;">
+        <div class="card-body">
+            <h5 class="card-title">PBMC Details</h5>
+            <table class="table table-sm table-bordered mb-0">
+                <tr>
+                    <td>Cell Count</td>
+                    <td>
+                        @if (s.CellCount.HasValue)
+                        {
+                            <strong>@s.CellCount.Value.ToString("N0")</strong> <span class="text-muted">cells/mL</span>
+                        }
+                        else
+                        {
+                            <span class="text-muted">Not recorded</span>
                         }
                     </td>
                 </tr>

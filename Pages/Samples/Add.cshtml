@@ -24,6 +24,10 @@
         <label asp-for="Input.LegacyID" class="form-label"></label>
         <input asp-for="Input.LegacyID" class="form-control" />
     </div>
+    <div class="col-md-6">
+        <label asp-for="Input.ParticipantID" class="form-label"></label>
+        <input asp-for="Input.ParticipantID" class="form-control" />
+    </div>
 
     <div class="col-md-6">
         <label asp-for="Input.StudyID" class="form-label"></label>
@@ -49,8 +53,15 @@
             <option value="">—</option>
             <option value="1">1</option>
             <option value="2">2</option>
+            <option value="3">3</option>
         </select>
         <span class="form-text">Required for Plasma specimens.</span>
+    </div>
+
+    <div class="col-md-8" id="cellCountGroup" style="display:none;">
+        <label asp-for="Input.CellCount" class="form-label"></label>
+        <input asp-for="Input.CellCount" class="form-control" type="number" min="0" style="max-width:180px;" />
+        <span class="form-text">Cell count for PBMC specimens.</span>
     </div>
 
     <div class="col-md-4" id="spotsGroup" style="display:none;">
@@ -92,6 +103,7 @@
         const sampleTypeSelect = document.getElementById('sampleTypeSelect');
         const aliquotGroup = document.getElementById('aliquotGroup');
         const spotsGroup = document.getElementById('spotsGroup');
+        const cellCountGroup = document.getElementById('cellCountGroup');
 
         // Build a map of SampleTypeID → TypeName from the dropdown options
         const typeNames = {};
@@ -104,6 +116,7 @@
             const typeName = typeNames[sampleTypeSelect.value] || '';
             aliquotGroup.style.display = typeName.toLowerCase().includes('plasma') ? '' : 'none';
             spotsGroup.style.display = typeName.toLowerCase().includes('filter paper') ? '' : 'none';
+            cellCountGroup.style.display = typeName.toLowerCase().includes('pbmc') ? '' : 'none';
         }
         sampleTypeSelect.addEventListener('change', updateTypeFields);
         updateTypeFields();

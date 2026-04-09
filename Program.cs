@@ -81,17 +81,25 @@ using (var scope = app.Services.CreateScope())
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<IdentityUser>>();
         var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
 
+        // Ensure all roles exist
+        foreach (var role in new[] { "Admin", "Write", "Read" })
+        {
+            if (!await roleManager.RoleExistsAsync(role))
+                await roleManager.CreateAsync(new IdentityRole(role));
+        }
+
+        // Seed admin user
         var adminEmail = "admin@stasis.com";
         var adminUser = await userManager.FindByEmailAsync(adminEmail);
         if (adminUser == null)
         {
             adminUser = new IdentityUser { UserName = adminEmail, Email = adminEmail, EmailConfirmed = true };
-            var result = await userManager.CreateAsync(adminUser, adminPassword);
-            if (result.Succeeded && await roleManager.RoleExistsAsync("Admin"))
-            {
-                await userManager.AddToRoleAsync(adminUser, "Admin");
-            }
+            await userManager.CreateAsync(adminUser, adminPassword);
         }
+
+        // Ensure admin user has Admin role
+        if (!await userManager.IsInRoleAsync(adminUser, "Admin"))
+            await userManager.AddToRoleAsync(adminUser, "Admin");
     }
 }
 

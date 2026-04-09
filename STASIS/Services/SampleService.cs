@@ -16,7 +16,7 @@ public class SampleService : ISampleService
         _auditService = auditService;
     }
 
-    public async Task<(List<Specimen> Specimens, int TotalCount)> GetSpecimensAsync(string? searchString, int? studyId, int? sampleTypeId, int pageIndex, int pageSize)
+    public async Task<(List<Specimen> Specimens, int TotalCount)> GetSpecimensAsync(string? searchString, int? studyId, int? sampleTypeId, string? participantId, int pageIndex, int pageSize)
     {
         var query = _context.Specimens
             .Include(s => s.Study)
@@ -40,6 +40,11 @@ public class SampleService : ISampleService
         if (sampleTypeId.HasValue)
         {
             query = query.Where(s => s.SampleTypeID == sampleTypeId.Value);
+        }
+
+        if (!string.IsNullOrEmpty(participantId))
+        {
+            query = query.Where(s => s.ParticipantID != null && s.ParticipantID.Contains(participantId));
         }
 
         var totalCount = await query.CountAsync();
@@ -163,6 +168,8 @@ public class SampleService : ISampleService
             importRow.BoxLabel = row.Length > 5 ? row[5].Trim() : null;
             importRow.PositionRow = row.Length > 6 ? row[6].Trim() : null;
             importRow.PositionCol = row.Length > 7 ? row[7].Trim() : null;
+            importRow.ParticipantID = row.Length > 8 ? row[8].Trim() : null;
+            importRow.CellCount = row.Length > 9 ? row[9].Trim() : null;
 
             // Validate barcode uniqueness
             if (existingBarcodeSet.Contains(importRow.BarcodeID))
@@ -295,6 +302,8 @@ public class SampleService : ISampleService
                 PositionRow = posRow,
                 PositionCol = posCol,
                 RemainingSpots = remainingSpots,
+                ParticipantID = string.IsNullOrEmpty(importRow.ParticipantID) ? null : importRow.ParticipantID,
+                CellCount = int.TryParse(importRow.CellCount, out var importedCellCount) ? importedCellCount : (int?)null,
                 Status = "In-Stock"
             };
 

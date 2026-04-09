@@ -22,6 +22,7 @@ namespace STASIS.Pages.Samples
 
         public bool IsFilterPaper => Specimen?.SampleType?.TypeName?.Equals("Filter Paper", StringComparison.OrdinalIgnoreCase) == true;
         public bool IsPlasma => Specimen?.SampleType?.TypeName?.Equals("Plasma", StringComparison.OrdinalIgnoreCase) == true;
+        public bool IsPBMC => Specimen?.SampleType?.TypeName?.Equals("PBMC", StringComparison.OrdinalIgnoreCase) == true;
 
         public async Task<IActionResult> OnGetAsync()
         {

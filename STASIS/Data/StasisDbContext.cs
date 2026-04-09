@@ -172,6 +172,10 @@ public class StasisDbContext : IdentityDbContext
             .HasIndex(s => s.SampleTypeID);
 
         modelBuilder.Entity<Specimen>()
+            .HasIndex(s => s.ParticipantID)
+            .HasDatabaseName("IX_Specimens_ParticipantID");
+
+        modelBuilder.Entity<Specimen>()
             .Property(s => s.Status)
             .HasDefaultValue("In-Stock");
 
@@ -191,7 +195,7 @@ public class StasisDbContext : IdentityDbContext
         modelBuilder.Entity<Specimen>()
             .ToTable(t => t.HasCheckConstraint(
                 "CK_Specimens_AliquotNumber",
-                "\"AliquotNumber\" IS NULL OR \"AliquotNumber\" IN (1, 2)"));
+                "\"AliquotNumber\" IS NULL OR \"AliquotNumber\" IN (1, 2, 3)"));
 
         modelBuilder.Entity<Specimen>()
             .HasOne(s => s.DiscardApproval)
