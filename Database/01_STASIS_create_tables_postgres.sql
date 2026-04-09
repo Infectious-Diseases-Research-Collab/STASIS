@@ -633,9 +633,11 @@ CREATE TABLE public."tbl_Specimens" (
     "SpotsShippedInternational" integer DEFAULT 0 NOT NULL,
     "SpotsReservedLocal" integer DEFAULT 0 NOT NULL,
     "AliquotNumber" integer,
+    "ParticipantID" character varying(100),
+    "CellCount" integer,
     "DiscardApprovalID" integer,
     "Status" character varying(50) DEFAULT 'In-Stock'::character varying NOT NULL,
-    CONSTRAINT "CK_Specimens_AliquotNumber" CHECK ((("AliquotNumber" IS NULL) OR ("AliquotNumber" = ANY (ARRAY[1, 2])))),
+    CONSTRAINT "CK_Specimens_AliquotNumber" CHECK ((("AliquotNumber" IS NULL) OR ("AliquotNumber" = ANY (ARRAY[1, 2, 3])))),
     CONSTRAINT "CK_Specimens_Status" CHECK ((("Status")::text = ANY ((ARRAY['In-Stock'::character varying, 'Staged'::character varying, 'Shipped'::character varying, 'Missing'::character varying, 'Depleted'::character varying, 'Discarded'::character varying, 'Temp'::character varying, 'Not Yet Received'::character varying])::text[])))
 );
 
@@ -1003,6 +1005,13 @@ CREATE INDEX "IX_AuditLog_TableRecord" ON public."tbl_AuditLog" USING btree ("Ta
 --
 
 CREATE INDEX "IX_AuditLog_Timestamp" ON public."tbl_AuditLog" USING btree ("Timestamp" DESC);
+
+
+--
+-- Name: IX_Specimens_ParticipantID; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX "IX_Specimens_ParticipantID" ON public."tbl_Specimens" USING btree ("ParticipantID");
 
 
 --

@@ -50,8 +50,9 @@ VALUES
     ('SYSTEM-TRASH', '100-slot', 'Trash', NULL),
     ('SYSTEM-SHIPPING', '100-slot', 'Shipping', NULL);
 
+-- Plasma: aliquots 1 and 2, with ParticipantIDs
 INSERT INTO "tbl_Specimens"
-    ("BarcodeID", "StudyID", "SampleTypeID", "CollectionDate", "BoxID", "PositionRow", "PositionCol", "AliquotNumber")
+    ("BarcodeID", "StudyID", "SampleTypeID", "CollectionDate", "BoxID", "PositionRow", "PositionCol", "AliquotNumber", "ParticipantID")
 SELECT
     'PLASMA-' || lpad(gs::text, 3, '0'),
     1,
@@ -60,9 +61,11 @@ SELECT
     1,
     ((gs - 1) / 9) + 1,
     ((gs - 1) % 9) + 1,
-    CASE WHEN gs % 2 = 1 THEN 1 ELSE 2 END
+    CASE WHEN gs % 2 = 1 THEN 1 ELSE 2 END,
+    'PC-K-' || lpad(((gs + 1) / 2)::text, 3, '0')
 FROM generate_series(1, 50) AS gs;
 
+-- Buffy Coat: no aliquot, no ParticipantID
 INSERT INTO "tbl_Specimens"
     ("BarcodeID", "StudyID", "SampleTypeID", "CollectionDate", "BoxID", "PositionRow", "PositionCol")
 SELECT
@@ -75,6 +78,7 @@ SELECT
     ((gs - 1) % 9) + 1
 FROM generate_series(1, 35) AS gs;
 
+-- Whole Blood
 INSERT INTO "tbl_Specimens"
     ("BarcodeID", "StudyID", "SampleTypeID", "CollectionDate", "BoxID", "PositionRow", "PositionCol")
 SELECT
@@ -87,6 +91,7 @@ SELECT
     ((gs - 1) % 10) + 1
 FROM generate_series(1, 30) AS gs;
 
+-- Filter Paper: RemainingSpots
 INSERT INTO "tbl_Specimens"
     ("BarcodeID", "StudyID", "SampleTypeID", "CollectionDate", "BoxID", "PositionRow", "PositionCol", "RemainingSpots")
 SELECT
@@ -99,5 +104,16 @@ SELECT
     1,
     4
 FROM generate_series(1, 25) AS gs;
+
+-- PBMC: aliquots 1, 2, and 3 with CellCount and ParticipantID (tests AliquotNumber = 3 and CellCount)
+INSERT INTO "tbl_Specimens"
+    ("BarcodeID", "StudyID", "SampleTypeID", "CollectionDate", "BoxID", "PositionRow", "PositionCol", "AliquotNumber", "CellCount", "ParticipantID")
+VALUES
+    ('PBMC-001', 2, 2, CURRENT_TIMESTAMP - interval '10 days', 2, 5, 1, 1, 5000000, 'BC-001'),
+    ('PBMC-002', 2, 2, CURRENT_TIMESTAMP - interval '10 days', 2, 5, 2, 2, 4800000, 'BC-001'),
+    ('PBMC-003', 2, 2, CURRENT_TIMESTAMP - interval '10 days', 2, 5, 3, 3, 5200000, 'BC-001'),
+    ('PBMC-004', 2, 2, CURRENT_TIMESTAMP - interval '20 days', 2, 5, 4, 1, 6100000, 'BC-002'),
+    ('PBMC-005', 2, 2, CURRENT_TIMESTAMP - interval '20 days', 2, 5, 5, 2, 5900000, 'BC-002'),
+    ('PBMC-006', 2, 2, CURRENT_TIMESTAMP - interval '20 days', 2, 5, 6, 3, 6300000, 'BC-002');
 
 COMMIT;
