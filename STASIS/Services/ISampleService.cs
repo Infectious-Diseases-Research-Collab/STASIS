@@ -11,6 +11,12 @@ public interface ISampleService
     Task<bool> IsBarcodeTaken(string barcode);
     Task<List<(int Row, int Col)>> GetOccupiedPositions(int boxId);
     Task AddSpecimen(Specimen specimen);
+    Task<List<VisitType>> GetAllVisitTypes();
+    Task<(int Row, int? Col)?> GetNextAvailablePosition(int boxId);
+    Task AddSpecimensBatch(IEnumerable<Specimen> specimens, string userId);
+    Task AddVisitType(string name, string userId);
+    Task UpdateVisitType(int id, string name, string userId);
+    Task DeleteVisitType(int id, string userId);
     Task UpdateSpecimen(Specimen specimen);
     Task DeleteSpecimen(int id);
     Task<ImportResult> ImportSpecimensFromCsv(Stream csvStream);

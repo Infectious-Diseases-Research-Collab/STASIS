@@ -66,6 +66,126 @@ public class SampleService : ISampleService
         return await _context.SampleTypes.OrderBy(st => st.TypeName).ToListAsync();
     }
 
+    public async Task<List<VisitType>> GetAllVisitTypes()
+    {
+        return await _context.VisitTypes.OrderBy(v => v.VisitTypeName).ToListAsync();
+    }
+
+    public async Task<(int Row, int? Col)?> GetNextAvailablePosition(int boxId)
+    {
+        var box = await _context.Boxes.FindAsync(boxId);
+        if (box == null) return null;
+
+        var occupied = await _context.Specimens
+            .Where(s => s.BoxID == boxId && s.PositionRow != null)
+            .Select(s => new { s.PositionRow, s.PositionCol })
+            .ToListAsync();
+
+        var occupiedSet = occupied
+            .Select(p => (p.PositionRow!.Value, p.PositionCol ?? 1))
+            .ToHashSet();
+
+        // Determine grid dimensions from BoxType
+        int rows, cols;
+        bool isLinear = false;
+
+        switch (box.BoxType)
+        {
+            case "81-slot":
+                rows = 9; cols = 9;
+                break;
+            case "100-slot":
+                rows = 10; cols = 10;
+                break;
+            case "Filter Paper Binder":
+                rows = 100; cols = 1; isLinear = true;
+                break;
+            default:
+                // Unknown box type — returns null (same as "box full"). Caller cannot distinguish.
+                // The three types above are the only supported types per the DB check constraint.
+                return null;
+        }
+
+        // Scan sequentially for first free slot
+        for (int r = 1; r <= rows; r++)
+        {
+            for (int c = 1; c <= cols; c++)
+            {
+                if (!occupiedSet.Contains((r, c)))
+                    return isLinear ? (r, (int?)null) : (r, c);
+            }
+        }
+
+        return null; // box is full
+    }
+
+    public async Task AddSpecimensBatch(IEnumerable<Specimen> specimens, string userId)
+    {
+        var specimenList = specimens.ToList();
+        using var transaction = await _context.Database.BeginTransactionAsync();
+        try
+        {
+            foreach (var specimen in specimenList)
+            {
+                _context.Specimens.Add(specimen);
+            }
+            await _context.SaveChangesAsync();
+
+            // Audit writes share the same scoped DbContext as this service, so they are
+            // inside the same transaction. If the transaction is rolled back, audit rows
+            // are rolled back too — no orphaned entries.
+            foreach (var specimen in specimenList)
+            {
+                await _auditService.LogChangeAsync(
+                    "tbl_Specimens", specimen.SpecimenID.ToString(),
+                    "Created", null, specimen.BarcodeID, userId);
+            }
+
+            await transaction.CommitAsync();
+        }
+        catch
+        {
+            await transaction.RollbackAsync();
+            throw;
+        }
+    }
+
+    public async Task AddVisitType(string name, string userId)
+    {
+        var visitType = new VisitType { VisitTypeName = name };
+        _context.VisitTypes.Add(visitType);
+        await _context.SaveChangesAsync();
+        await _auditService.LogChangeAsync("tbl_VisitTypes", visitType.VisitTypeID.ToString(),
+            "Created", null, visitType.VisitTypeName, userId);
+    }
+
+    public async Task UpdateVisitType(int id, string name, string userId)
+    {
+        var existing = await _context.VisitTypes.FindAsync(id)
+            ?? throw new KeyNotFoundException($"VisitType {id} not found.");
+        var oldName = existing.VisitTypeName;
+        existing.VisitTypeName = name;
+        await _context.SaveChangesAsync();
+        if (oldName != name)
+            await _auditService.LogChangeAsync("tbl_VisitTypes", id.ToString(),
+                "VisitTypeName", oldName, name, userId);
+    }
+
+    public async Task DeleteVisitType(int id, string userId)
+    {
+        var visitType = await _context.VisitTypes
+            .Include(v => v.Specimens)
+            .FirstOrDefaultAsync(v => v.VisitTypeID == id)
+            ?? throw new KeyNotFoundException($"VisitType {id} not found.");
+        if (visitType.Specimens.Count > 0)
+            throw new InvalidOperationException("Cannot delete visit type — it has specimens associated with it.");
+        var name = visitType.VisitTypeName;
+        _context.VisitTypes.Remove(visitType);
+        await _context.SaveChangesAsync();
+        await _auditService.LogChangeAsync("tbl_VisitTypes", id.ToString(),
+            "Deleted", name, null, userId);
+    }
+
     public async Task<Specimen?> GetSpecimenByBarcode(string barcode)
     {
         return await _context.Specimens
