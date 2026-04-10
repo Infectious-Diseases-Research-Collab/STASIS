@@ -13,6 +13,13 @@ VALUES
     ('SAPPHIRE', 'SAPPHIRE Study', 'Dr. Jane'),
     ('PBO', 'PBO Study', 'Dr. Sam');
 
+INSERT INTO "tbl_VisitTypes" ("VisitTypeName")
+VALUES
+    ('Baseline'),
+    ('Follow-up 1'),
+    ('Follow-up 2'),
+    ('End of Study');
+
 INSERT INTO "tbl_SampleTypes" ("TypeName", "IsConsumable", "MaxShippableUnits", "LocalReserveUnits")
 VALUES
     ('Plasma', false, 1, 1),
@@ -91,7 +98,7 @@ SELECT
     ((gs - 1) % 10) + 1
 FROM generate_series(1, 30) AS gs;
 
--- Filter Paper: RemainingSpots
+-- Filter Paper: RemainingSpots (PositionCol is NULL; PositionRow holds the linear slot number)
 INSERT INTO "tbl_Specimens"
     ("BarcodeID", "StudyID", "SampleTypeID", "CollectionDate", "BoxID", "PositionRow", "PositionCol", "RemainingSpots")
 SELECT
@@ -101,7 +108,7 @@ SELECT
     CURRENT_TIMESTAMP - make_interval(days => gs),
     4,
     gs,
-    1,
+    NULL,
     4
 FROM generate_series(1, 25) AS gs;
 

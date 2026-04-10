@@ -8,6 +8,8 @@ public class Specimen
     public string? ParticipantID { get; set; }
     public int? StudyID { get; set; }
     public Study? Study { get; set; }
+    public int? VisitTypeID { get; set; }
+    public VisitType? VisitType { get; set; }
     public int? SampleTypeID { get; set; }
     public SampleType? SampleType { get; set; }
     public DateTime? CollectionDate { get; set; }
