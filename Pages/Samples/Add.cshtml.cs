@@ -23,8 +23,9 @@ namespace STASIS.Pages.Samples
         }
 
         [BindProperty]
+        [Required]
         [StringLength(100)]
-        public string? ParticipantID { get; set; }
+        public string ParticipantID { get; set; } = string.Empty;
 
         [BindProperty]
         public int? StudyID { get; set; }
@@ -78,6 +79,12 @@ namespace STASIS.Pages.Samples
 
         public async Task<IActionResult> OnPostAsync()
         {
+            if (!ModelState.IsValid)
+            {
+                await LoadDropdownsAsync();
+                return Page();
+            }
+
             // Filter out blank cards (no barcode)
             var activeSamples = Samples
                 .Where(s => !string.IsNullOrWhiteSpace(s.BarcodeID))
@@ -175,7 +182,7 @@ namespace STASIS.Pages.Samples
             TempData["BatchParticipant"] = ParticipantID;
             TempData["CreatedBarcodes"] = string.Join(",", specimens.Select(s => s.BarcodeID));
 
-            return RedirectToPage(new { showSummary = true });
+            return RedirectToPage();
         }
 
         public async Task<IActionResult> OnGetCheckBarcodeAsync(string barcode)

@@ -2,162 +2,427 @@
 @model STASIS.Pages.Samples.AddModel
 @{
     ViewData["Title"] = "Add New Sample";
+    var showSummary = TempData["BatchSuccess"] != null;
+    var batchCount = TempData["BatchCount"];
+    var batchParticipant = TempData["BatchParticipant"] as string;
+    var createdBarcodes = (TempData["CreatedBarcodes"] as string ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries);
 }
 
 <h1>@ViewData["Title"]</h1>
 
-@if (TempData["Success"] != null)
+@if (showSummary)
 {
-    <div class="alert alert-success alert-dismissible fade show">@TempData["Success"]<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
+    <div class="alert alert-success alert-dismissible fade show">
+        <strong>✓ @batchCount sample@(batchCount?.ToString() == "1" ? "" : "s") added successfully@(string.IsNullOrEmpty(batchParticipant) ? "" : $" for {batchParticipant}").</strong>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    <div class="card mb-4" style="max-width:600px;">
+        <div class="card-body">
+            <h6 class="card-title">Created Specimens</h6>
+            <ul class="mb-3">
+                @foreach (var bc in createdBarcodes)
+                {
+                    <li><code>@bc</code></li>
+                }
+            </ul>
+            <a asp-page="/Samples/Add" class="btn btn-primary btn-sm">Add Another Participant</a>
+            <a asp-page="/Samples" class="btn btn-outline-secondary btn-sm ms-2">Back to Samples List</a>
+        </div>
+    </div>
 }
 
+@if (!showSummary)
+{
 <div asp-validation-summary="All" class="text-danger mb-3"></div>
 
-<form method="post" class="row g-3" style="max-width:800px;">
-    <div class="col-md-6">
-        <label asp-for="Input.BarcodeID" class="form-label"></label>
-        <input asp-for="Input.BarcodeID" class="form-control" id="barcodeInput" autofocus />
-        <span asp-validation-for="Input.BarcodeID" class="text-danger small"></span>
-        <small id="barcodeStatus" class="text-muted"></small>
-    </div>
-    <div class="col-md-6">
-        <label asp-for="Input.LegacyID" class="form-label"></label>
-        <input asp-for="Input.LegacyID" class="form-control" />
-    </div>
-    <div class="col-md-6">
-        <label asp-for="Input.ParticipantID" class="form-label"></label>
-        <input asp-for="Input.ParticipantID" class="form-control" />
+<form method="post" style="max-width:860px;">
+
+    @* Participant Information *@
+    <div class="card mb-3">
+        <div class="card-body">
+            <p class="text-uppercase fw-bold small text-muted mb-3" style="letter-spacing:.07em;">Participant Information</p>
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold small">Participant ID <span class="text-danger">*</span></label>
+                    <input name="ParticipantID" value="@Model.ParticipantID" class="form-control" placeholder="e.g. PRISM-004421" required />
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold small">Study</label>
+                    <select name="StudyID" asp-items="Model.StudyOptions" class="form-select">
+                        <option value="">— Select Study —</option>
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold small">Visit Type</label>
+                    <select name="VisitTypeID" asp-items="Model.VisitTypeOptions" class="form-select">
+                        <option value="">— Select Visit Type —</option>
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold small">Collection Date</label>
+                    <input name="CollectionDate" type="date" class="form-control"
+                           value="@Model.CollectionDate?.ToString("yyyy-MM-dd")" />
+                </div>
+            </div>
+        </div>
     </div>
 
-    <div class="col-md-6">
-        <label asp-for="Input.StudyID" class="form-label"></label>
-        <select asp-for="Input.StudyID" asp-items="Model.StudyOptions" class="form-select">
-            <option value="">— Select Study —</option>
-        </select>
-    </div>
-    <div class="col-md-6">
-        <label asp-for="Input.SampleTypeID" class="form-label"></label>
-        <select asp-for="Input.SampleTypeID" asp-items="Model.SampleTypeOptions" class="form-select" id="sampleTypeSelect">
-            <option value="">— Select Type —</option>
-        </select>
+    @* Samples *@
+    <p class="text-uppercase fw-bold small text-muted mb-2" style="letter-spacing:.07em;">Samples</p>
+
+    <div id="sampleContainer">
+        @* Initial card rendered server-side so Razor tag helpers work *@
+        <div class="sample-card card mb-3" id="sample-0" style="border-left:3px solid #0d6efd;">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <span class="sample-number fw-bold small text-uppercase" style="letter-spacing:.06em;">Sample 1</span>
+                    <button type="button" class="btn btn-sm btn-outline-danger remove-btn" style="visibility:hidden;" onclick="removeCard(this)">✕ Remove</button>
+                </div>
+                <div class="row g-2">
+                    <div class="col-md-4">
+                        <label class="form-label fw-semibold small">Barcode ID</label>
+                        <input name="Samples[0].BarcodeID" class="form-control barcode-input" placeholder="Scan or type barcode" autocomplete="off" />
+                        <div class="barcode-status" aria-live="polite" style="font-size:.72rem;min-height:1.1em;"></div>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-semibold small">Sample Type</label>
+                        <select name="Samples[0].SampleTypeID" class="form-select type-select" onchange="updateConditional(this)">
+                            <option value="">— Select Type —</option>
+                            @foreach (var st in Model.SampleTypes)
+                            {
+                                <option value="@st.SampleTypeID" data-typename="@st.TypeName.ToLower()">@st.TypeName</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-semibold small">Box <span class="text-muted fw-normal" style="font-size:.7rem;">optional</span></label>
+                        <select name="Samples[0].BoxID" class="form-select box-select" onchange="onBoxChange(this)">
+                            <option value="">— No box —</option>
+                            @foreach (var item in Model.BoxOptions)
+                            {
+                                <option value="@item.Value">@item.Text</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="col-12">
+                        <input type="hidden" name="Samples[0].PositionRow" class="pos-row-input" />
+                        <input type="hidden" name="Samples[0].PositionCol" class="pos-col-input" />
+                        <div class="pos-none text-muted" style="font-size:.78rem;font-style:italic;">No box selected — position not required.</div>
+                        <div class="pos-auto d-none align-items-center gap-2" style="font-size:.78rem;color:#2b6cb0;">
+                            <span>📍 Auto-assigned:</span>
+                            <strong class="pos-label"></strong>
+                            <button type="button" class="btn btn-link btn-sm p-0" style="font-size:.7rem;" onclick="toggleOverride(this)">override</button>
+                        </div>
+                        <div class="pos-manual d-none row g-2 mt-1">
+                            <div class="col-auto">
+                                <label class="form-label fw-semibold small">Row</label>
+                                <input type="number" min="1" class="form-control pos-row-manual" style="width:80px;" />
+                            </div>
+                            <div class="col-auto">
+                                <label class="form-label fw-semibold small">Col</label>
+                                <input type="number" min="1" class="form-control pos-col-manual" style="width:80px;" />
+                            </div>
+                            <div class="col-auto d-flex align-items-end">
+                                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="toggleOverride(this)">Use auto</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="conditional-wrapper mt-2"></div>
+            </div>
+        </div>
     </div>
 
-    <div class="col-md-4">
-        <label asp-for="Input.CollectionDate" class="form-label"></label>
-        <input asp-for="Input.CollectionDate" class="form-control" type="date" />
+    <button type="button" class="btn btn-outline-primary w-100 mb-3" style="border-style:dashed;border-width:2px;" onclick="addCard()">+ Add Another Sample</button>
+
+    <div class="d-flex gap-2 align-items-center">
+        <button type="submit" class="btn btn-primary">Save All Samples</button>
+        <a asp-page="/Samples" class="btn btn-secondary">Cancel</a>
     </div>
 
-    <div class="col-md-8" id="aliquotGroup" style="display:none;">
-        <label asp-for="Input.AliquotNumber" class="form-label"></label>
-        <select asp-for="Input.AliquotNumber" class="form-select" style="max-width:120px;">
-            <option value="">—</option>
-            <option value="1">1</option>
-            <option value="2">2</option>
-            <option value="3">3</option>
-        </select>
-        <span class="form-text">Required for Plasma specimens.</span>
-    </div>
-
-    <div class="col-md-8" id="cellCountGroup" style="display:none;">
-        <label asp-for="Input.CellCount" class="form-label"></label>
-        <input asp-for="Input.CellCount" class="form-control" type="number" min="0" style="max-width:180px;" />
-        <span class="form-text">Cell count for PBMC specimens.</span>
-    </div>
-
-    <div class="col-md-4" id="spotsGroup" style="display:none;">
-        <label asp-for="Input.RemainingSpots" class="form-label"></label>
-        <input asp-for="Input.RemainingSpots" class="form-control" type="number" min="0" max="4" value="4" style="max-width:120px;" />
-        <span class="form-text">Defaults to 4 for Filter Paper.</span>
-    </div>
-
-    <hr />
-
-    <div class="col-md-12">
-        <label asp-for="Input.BoxID" class="form-label"></label>
-        <select asp-for="Input.BoxID" asp-items="Model.BoxOptions" class="form-select" id="boxSelect">
-            <option value="">— No box assigned —</option>
-        </select>
-    </div>
-
-    <div class="col-md-3">
-        <label asp-for="Input.PositionRow" class="form-label"></label>
-        <input asp-for="Input.PositionRow" class="form-control" type="number" min="1" />
-    </div>
-    <div class="col-md-3">
-        <label asp-for="Input.PositionCol" class="form-label"></label>
-        <input asp-for="Input.PositionCol" class="form-control" type="number" min="1" />
-    </div>
-    <div class="col-md-6" id="positionStatus">
-    </div>
-
-    <div class="col-12 mt-3">
-        <button type="submit" class="btn btn-primary">Add Specimen</button>
-        <a asp-page="/Samples" class="btn btn-secondary ms-2">Cancel</a>
-    </div>
 </form>
+}
 
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
     <script>
-        // Show/hide Plasma AliquotNumber and Filter Paper RemainingSpots
-        const sampleTypeSelect = document.getElementById('sampleTypeSelect');
-        const aliquotGroup = document.getElementById('aliquotGroup');
-        const spotsGroup = document.getElementById('spotsGroup');
-        const cellCountGroup = document.getElementById('cellCountGroup');
-
-        // Build a map of SampleTypeID → TypeName from the dropdown options
+        // ── Type names for conditional field detection ──────────────────────────
         const typeNames = {};
         @foreach (var st in Model.SampleTypes)
         {
-            @:typeNames[@st.SampleTypeID] = '@st.TypeName';
+            @:typeNames[@st.SampleTypeID] = '@st.TypeName.ToLower().Replace("'", "\\'")';
         }
 
-        function updateTypeFields() {
-            const typeName = typeNames[sampleTypeSelect.value] || '';
-            aliquotGroup.style.display = typeName.toLowerCase().includes('plasma') ? '' : 'none';
-            spotsGroup.style.display = typeName.toLowerCase().includes('filter paper') ? '' : 'none';
-            cellCountGroup.style.display = typeName.toLowerCase().includes('pbmc') ? '' : 'none';
-        }
-        sampleTypeSelect.addEventListener('change', updateTypeFields);
-        updateTypeFields();
+        // ── Card counter (for unique index names in form binding) ───────────────
+        let cardIndex = 1; // next index to use when adding (0 is the server-rendered card)
 
-        // Barcode uniqueness check
-        let barcodeTimer;
-        const barcodeInput = document.getElementById('barcodeInput');
-        const barcodeStatus = document.getElementById('barcodeStatus');
+        // ── Box select handler ──────────────────────────────────────────────────
+        async function onBoxChange(select) {
+            const card = select.closest('.sample-card');
+            const boxId = select.value;
 
-        barcodeInput.addEventListener('input', function () {
-            clearTimeout(barcodeTimer);
-            const val = this.value.trim();
-            if (!val) { barcodeStatus.textContent = ''; return; }
-            barcodeTimer = setTimeout(async () => {
-                const resp = await fetch(`?handler=CheckBarcode&barcode=${encodeURIComponent(val)}`);
+            const noneEl  = card.querySelector('.pos-none');
+            const autoEl  = card.querySelector('.pos-auto');
+            const manEl   = card.querySelector('.pos-manual');
+            const rowInput = card.querySelector('.pos-row-input');
+            const colInput = card.querySelector('.pos-col-input');
+            const label    = card.querySelector('.pos-label');
+
+            if (!boxId) {
+                noneEl.classList.remove('d-none');
+                autoEl.classList.add('d-none');
+                autoEl.classList.remove('d-flex');
+                manEl.classList.add('d-none');
+                rowInput.value = '';
+                colInput.value = '';
+                return;
+            }
+
+            try {
+                const resp = await fetch(`?handler=NextPosition&boxId=${boxId}`);
+                if (!resp.ok) throw new Error('Server error');
                 const data = await resp.json();
-                if (data.taken) {
-                    barcodeStatus.textContent = 'This barcode is already in use.';
-                    barcodeStatus.className = 'text-danger small';
+
+                noneEl.classList.add('d-none');
+                manEl.classList.add('d-none');
+
+                if (data.full) {
+                    autoEl.classList.remove('d-none');
+                    autoEl.classList.add('d-flex');
+                    label.textContent = 'Box is full';
+                    rowInput.value = '';
+                    colInput.value = '';
                 } else {
-                    barcodeStatus.textContent = 'Available.';
-                    barcodeStatus.className = 'text-success small';
+                    autoEl.classList.remove('d-none');
+                    autoEl.classList.add('d-flex');
+                    const colPart = data.col ? `, Col ${data.col}` : '';
+                    label.textContent = `Row ${data.row}${colPart}`;
+                    rowInput.value = data.row;
+                    colInput.value = data.col ?? '';
+                    autoEl.dataset.autoRow = data.row;
+                    autoEl.dataset.autoCol = data.col ?? '';
+                    card.querySelector('.pos-row-manual').value = data.row;
+                    card.querySelector('.pos-col-manual').value = data.col ?? '';
+                }
+            } catch {
+                // On error, reset to "no box selected" state so user can retry
+                noneEl.classList.remove('d-none');
+                autoEl.classList.add('d-none');
+                autoEl.classList.remove('d-flex');
+                manEl.classList.add('d-none');
+                rowInput.value = '';
+                colInput.value = '';
+                label.textContent = 'Could not load position — try reselecting the box.';
+            }
+        }
+
+        function toggleOverride(btn) {
+            const card = btn.closest('.sample-card');
+            const autoEl = card.querySelector('.pos-auto');
+            const manEl  = card.querySelector('.pos-manual');
+            const rowInput = card.querySelector('.pos-row-input');
+            const colInput = card.querySelector('.pos-col-input');
+
+            if (manEl.classList.contains('d-none')) {
+                // Switch to manual
+                autoEl.classList.add('d-none');
+                autoEl.classList.remove('d-flex');
+                manEl.classList.remove('d-none');
+            } else {
+                // Switch back to auto
+                manEl.classList.add('d-none');
+                autoEl.classList.remove('d-none');
+                autoEl.classList.add('d-flex');
+                // Restore hidden inputs from the original auto-assigned values
+                const autoEl2 = card.querySelector('.pos-auto');
+                rowInput.value = autoEl2.dataset.autoRow ?? '';
+                colInput.value = autoEl2.dataset.autoCol ?? '';
+                card.querySelector('.pos-row-manual').value = autoEl2.dataset.autoRow ?? '';
+                card.querySelector('.pos-col-manual').value = autoEl2.dataset.autoCol ?? '';
+            }
+        }
+
+        // Keep hidden inputs in sync when manual inputs change
+        document.addEventListener('input', function (e) {
+            if (e.target.classList.contains('pos-row-manual')) {
+                e.target.closest('.sample-card').querySelector('.pos-row-input').value = e.target.value;
+            }
+            if (e.target.classList.contains('pos-col-manual')) {
+                e.target.closest('.sample-card').querySelector('.pos-col-input').value = e.target.value;
+            }
+        });
+
+        // ── Sample type conditional fields ──────────────────────────────────────
+        function updateConditional(select) {
+            const card = select.closest('.sample-card');
+            const wrapper = card.querySelector('.conditional-wrapper');
+            const typeName = typeNames[select.value] || '';
+            const idx = getCardIndex(card);
+            if (!/^\d+$/.test(idx)) return; // reject non-numeric index
+
+            // Update accent colour
+            card.style.borderLeftColor =
+                typeName.includes('plasma')      ? '#dc3545' :
+                typeName.includes('pbmc')        ? '#6f42c1' :
+                typeName.includes('filter paper')? '#fd7e14' : '#0d6efd';
+
+            if (typeName.includes('plasma')) {
+                wrapper.innerHTML = `
+                    <div class="p-2 rounded" style="background:#fff0f0;border:1px solid #fca5a5;">
+                        <label class="form-label fw-semibold small">Aliquot Number <span class="text-muted fw-normal">(required for Plasma)</span></label>
+                        <select name="Samples[${idx}].AliquotNumber" class="form-select" style="max-width:120px;">
+                            <option value="">—</option>
+                            <option value="1">1</option>
+                            <option value="2">2</option>
+                            <option value="3">3</option>
+                        </select>
+                    </div>`;
+            } else if (typeName.includes('pbmc')) {
+                wrapper.innerHTML = `
+                    <div class="p-2 rounded" style="background:#f8f0ff;border:1px solid #d8b4fe;">
+                        <label class="form-label fw-semibold small">Cell Count <span class="text-muted fw-normal">(for PBMC specimens)</span></label>
+                        <input name="Samples[${idx}].CellCount" type="number" min="0" class="form-control" style="max-width:180px;" placeholder="e.g. 2500000">
+                    </div>`;
+            } else if (typeName.includes('filter paper')) {
+                wrapper.innerHTML = `
+                    <div class="p-2 rounded" style="background:#fff7ed;border:1px solid #fdba74;">
+                        <label class="form-label fw-semibold small">Remaining Spots <span class="text-muted fw-normal">(defaults to 4)</span></label>
+                        <input name="Samples[${idx}].RemainingSpots" type="number" min="0" max="4" value="4" class="form-control" style="max-width:120px;">
+                    </div>`;
+            } else {
+                wrapper.innerHTML = '';
+            }
+        }
+
+        function getCardIndex(card) {
+            // Extract index from the barcode input name attribute
+            const barcodeInput = card.querySelector('.barcode-input');
+            const match = barcodeInput?.name.match(/Samples\[(\d+)\]/);
+            return match ? match[1] : '0';
+        }
+
+        // ── Barcode uniqueness check ────────────────────────────────────────────
+        let barcodeTimers = {};
+        document.addEventListener('input', function (e) {
+            if (!e.target.classList.contains('barcode-input')) return;
+            const input = e.target;
+            const status = input.parentElement.querySelector('.barcode-status');
+            clearTimeout(barcodeTimers[input.name]);
+            const val = input.value.trim();
+            if (!val) { status.textContent = ''; return; }
+            barcodeTimers[input.name] = setTimeout(async () => {
+                try {
+                    const resp = await fetch(`?handler=CheckBarcode&barcode=${encodeURIComponent(val)}`);
+                    if (!resp.ok) throw new Error('Server error');
+                    const data = await resp.json();
+                    if (data.taken) {
+                        status.textContent = 'This barcode is already in use.';
+                        status.style.color = '#dc3545';
+                    } else {
+                        status.textContent = '✓ Available';
+                        status.style.color = '#198754';
+                    }
+                } catch {
+                    status.textContent = '';
                 }
             }, 400);
         });
 
-        // Occupied position check
-        const boxSelect = document.getElementById('boxSelect');
-        const positionStatus = document.getElementById('positionStatus');
-        let occupiedPositions = [];
+        // ── Add / Remove cards ──────────────────────────────────────────────────
+        function cloneOptions(sourceSelect) {
+            return Array.from(sourceSelect.options).map(o => {
+                const opt = document.createElement('option');
+                opt.value = o.value;
+                opt.textContent = o.text;
+                if (o.dataset.typename) opt.dataset.typename = o.dataset.typename;
+                return opt.outerHTML;
+            }).join('');
+        }
 
-        boxSelect.addEventListener('change', async function () {
-            occupiedPositions = [];
-            positionStatus.innerHTML = '';
-            if (!this.value) return;
-            const resp = await fetch(`?handler=OccupiedPositions&boxId=${this.value}`);
-            occupiedPositions = await resp.json();
-            if (occupiedPositions.length > 0) {
-                positionStatus.innerHTML = '<small class="text-muted">Occupied: ' +
-                    occupiedPositions.map(p => `(${p.row},${p.col})`).join(', ') + '</small>';
-            }
-        });
+        function addCard() {
+            const idx = cardIndex++;
+            const box = document.getElementById('sampleContainer');
+
+            // Clone the box options HTML from the first card
+            const firstBoxSelect = box.querySelector('.box-select');
+            const boxOptionsHtml = cloneOptions(firstBoxSelect);
+
+            // Clone the type options HTML from the first card
+            const firstTypeSelect = box.querySelector('.type-select');
+            const typeOptionsHtml = cloneOptions(firstTypeSelect);
+
+            const card = document.createElement('div');
+            card.className = 'sample-card card mb-3';
+            card.id = `sample-${idx}`;
+            card.style.borderLeft = '3px solid #0d6efd';
+            card.innerHTML = `
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <span class="sample-number fw-bold small text-uppercase" style="letter-spacing:.06em;"></span>
+                        <button type="button" class="btn btn-sm btn-outline-danger remove-btn" onclick="removeCard(this)">✕ Remove</button>
+                    </div>
+                    <div class="row g-2">
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold small">Barcode ID</label>
+                            <input name="Samples[${idx}].BarcodeID" class="form-control barcode-input" placeholder="Scan or type barcode" autocomplete="off" />
+                            <div class="barcode-status" aria-live="polite" style="font-size:.72rem;min-height:1.1em;"></div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold small">Sample Type</label>
+                            <select name="Samples[${idx}].SampleTypeID" class="form-select type-select" onchange="updateConditional(this)">
+                                ${typeOptionsHtml}
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold small">Box <span class="text-muted fw-normal" style="font-size:.7rem;">optional</span></label>
+                            <select name="Samples[${idx}].BoxID" class="form-select box-select" onchange="onBoxChange(this)">
+                                ${boxOptionsHtml}
+                            </select>
+                        </div>
+                        <div class="col-12">
+                            <input type="hidden" name="Samples[${idx}].PositionRow" class="pos-row-input" />
+                            <input type="hidden" name="Samples[${idx}].PositionCol" class="pos-col-input" />
+                            <div class="pos-none text-muted" style="font-size:.78rem;font-style:italic;">No box selected — position not required.</div>
+                            <div class="pos-auto d-none align-items-center gap-2" style="font-size:.78rem;color:#2b6cb0;">
+                                <span>📍 Auto-assigned:</span>
+                                <strong class="pos-label"></strong>
+                                <button type="button" class="btn btn-link btn-sm p-0" style="font-size:.7rem;" onclick="toggleOverride(this)">override</button>
+                            </div>
+                            <div class="pos-manual d-none row g-2 mt-1">
+                                <div class="col-auto">
+                                    <label class="form-label fw-semibold small">Row</label>
+                                    <input type="number" min="1" class="form-control pos-row-manual" style="width:80px;" />
+                                </div>
+                                <div class="col-auto">
+                                    <label class="form-label fw-semibold small">Col</label>
+                                    <input type="number" min="1" class="form-control pos-col-manual" style="width:80px;" />
+                                </div>
+                                <div class="col-auto d-flex align-items-end">
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="toggleOverride(this)">Use auto</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="conditional-wrapper mt-2"></div>
+                </div>`;
+            box.appendChild(card);
+            renumberCards();
+            card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+
+        function removeCard(btn) {
+            const card = btn.closest('.sample-card');
+            card.remove();
+            renumberCards();
+        }
+
+        function renumberCards() {
+            const cards = document.querySelectorAll('.sample-card');
+            cards.forEach((card, i) => {
+                card.querySelector('.sample-number').textContent = `Sample ${i + 1}`;
+                const removeBtn = card.querySelector('.remove-btn');
+                removeBtn.style.visibility = cards.length > 1 ? 'visible' : 'hidden';
+            });
+        }
     </script>
 }
