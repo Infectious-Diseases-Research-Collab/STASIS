@@ -150,7 +150,7 @@
         const typeNames = {};
         @foreach (var st in Model.SampleTypes)
         {
-            @:typeNames[@st.SampleTypeID] = '@st.TypeName.ToLower().Replace("'", "\\'")';
+            @:typeNames[@st.SampleTypeID] = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(st.TypeName.ToLower()));
         }
 
         // ── All boxes (used to repopulate dropdown on type change) ──────────────

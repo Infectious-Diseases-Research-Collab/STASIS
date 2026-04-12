@@ -6,6 +6,7 @@ public class VisitType
 {
     public int VisitTypeID { get; set; }
 
+    [Required]
     [MaxLength(100)]
     public string VisitTypeName { get; set; } = string.Empty;
 

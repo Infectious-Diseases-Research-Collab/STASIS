@@ -81,6 +81,8 @@ public class SampleService : ISampleService
             .Select(s => new { s.PositionRow, s.PositionCol })
             .ToListAsync();
 
+        // Normalise col to 1 for hashing — Filter Paper Binder boxes use null col (linear),
+        // so null and col=1 cannot coexist in the same box. Safe to treat them as equivalent.
         var occupiedSet = occupied
             .Select(p => (p.PositionRow!.Value, p.PositionCol ?? 1))
             .ToHashSet();
