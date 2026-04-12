@@ -53,6 +53,12 @@ These items have groundwork in place but need additional work to be fully functi
 - **What's missing:** PostgreSQL treats `NULL` values as distinct in unique constraints, so two Filter Paper specimens with `(BoxID=X, PositionRow=Y, PositionCol=NULL)` do not violate the constraint. The in-batch check catches same-request conflicts, but concurrent requests or manual DB inserts can produce duplicate physical slots.
 - **Where to implement:** Add a partial unique index scoped to `WHERE "PositionCol" IS NULL` (e.g., `UNIQUE ("BoxID", "PositionRow") WHERE "PositionCol" IS NULL`) as a separate EF migration and SQL script entry. Requires testing against the existing Filter Paper unique-position behaviour.
 
+### 8. GetOccupiedPositions drops Filter Paper positions
+
+- **What exists:** `SampleService.GetOccupiedPositions` filters `WHERE PositionCol != null`, silently omitting all Filter Paper Binder specimens (col is always null).
+- **Impact:** The handler `OnGetOccupiedPositionsAsync` is currently unused by the Add page JS, so no runtime failure today. Any future caller relying on it for FP Binder boxes will receive an empty set.
+- **Fix:** Remove the `PositionCol != null` predicate and change the return type to `List<(int Row, int? Col)>`.
+
 ---
 
 ## Resolved Items
