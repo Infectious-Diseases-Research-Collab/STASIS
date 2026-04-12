@@ -81,9 +81,10 @@ namespace STASIS.Pages.Samples
 
         public async Task<IActionResult> OnPostAsync()
         {
+            await LoadDropdownsAsync();
+
             if (!ModelState.IsValid)
             {
-                await LoadDropdownsAsync();
                 return Page();
             }
 
@@ -95,7 +96,6 @@ namespace STASIS.Pages.Samples
             if (!activeSamples.Any())
             {
                 ModelState.AddModelError(string.Empty, "Enter at least one barcode.");
-                await LoadDropdownsAsync();
                 return Page();
             }
 
@@ -105,7 +105,6 @@ namespace STASIS.Pages.Samples
                 if (!activeSamples[i].SampleTypeID.HasValue)
                 {
                     ModelState.AddModelError(string.Empty, $"Sample {i + 1}: Sample Type is required.");
-                    await LoadDropdownsAsync();
                     return Page();
                 }
             }
@@ -121,7 +120,6 @@ namespace STASIS.Pages.Samples
             {
                 ModelState.AddModelError(string.Empty,
                     $"Duplicate barcodes in batch: {string.Join(", ", duplicatesInBatch)}");
-                await LoadDropdownsAsync();
                 return Page();
             }
 
@@ -137,7 +135,6 @@ namespace STASIS.Pages.Samples
             {
                 ModelState.AddModelError(string.Empty,
                     $"Barcodes already in use: {string.Join(", ", takenBarcodes)}");
-                await LoadDropdownsAsync();
                 return Page();
             }
 
@@ -153,12 +150,10 @@ namespace STASIS.Pages.Samples
             {
                 ModelState.AddModelError(string.Empty,
                     $"Duplicate box positions in batch: {string.Join(", ", positionConflicts)}");
-                await LoadDropdownsAsync();
                 return Page();
             }
 
             // Validate Filter Paper samples go only into Filter Paper Binder boxes
-            await LoadDropdownsAsync();
             var boxTypeErrors = new List<string>();
             foreach (var s in activeSamples.Where(s => s.BoxID.HasValue && s.SampleTypeID.HasValue))
             {
@@ -211,7 +206,6 @@ namespace STASIS.Pages.Samples
             {
                 ModelState.AddModelError(string.Empty,
                     "A conflict occurred (duplicate barcode or box position already taken). No samples were saved.");
-                await LoadDropdownsAsync();
                 return Page();
             }
 
