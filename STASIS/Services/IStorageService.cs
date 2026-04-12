@@ -12,6 +12,7 @@ public interface IStorageService
 
     // Phase 3: Search and movement
     Task<List<string>> GetAllBoxLabelsAsync();
+    Task<List<Box>> GetAllBoxesAsync();
     Task<List<Box>> SearchBoxesAsync(string? label, int? freezerId, int? rackId);
     Task<Box?> GetBoxByLabelAsync(string label);
     Task MoveSpecimenAsync(int specimenId, int newBoxId, int row, int col, string userId);
@@ -19,4 +20,5 @@ public interface IStorageService
     Task ReboxSpecimensAsync(List<(int SpecimenId, int Row, int Col)> placements, int newBoxId, string userId);
     Task MoveToTempAsync(int specimenId, string userId);
     Task CheckAndUnassignEmptyBoxAsync(int boxId);
+    Task<Box> CreateBoxAsync(string label, string boxType, int? rackId, string userId);
 }
