@@ -12,7 +12,7 @@ public interface ISampleService
     Task<List<(int Row, int Col)>> GetOccupiedPositions(int boxId);
     Task AddSpecimen(Specimen specimen);
     Task<List<VisitType>> GetAllVisitTypes();
-    Task<(int Row, int? Col)?> GetNextAvailablePosition(int boxId);
+    Task<(int Row, int? Col)?> GetNextAvailablePosition(int boxId, IEnumerable<(int Row, int? Col)>? claimedPositions = null);
     Task AddSpecimensBatch(IEnumerable<Specimen> specimens, string userId);
     Task AddVisitType(string name, string userId);
     Task UpdateVisitType(int id, string name, string userId);

@@ -71,7 +71,7 @@ public class SampleService : ISampleService
         return await _context.VisitTypes.OrderBy(v => v.VisitTypeName).ToListAsync();
     }
 
-    public async Task<(int Row, int? Col)?> GetNextAvailablePosition(int boxId)
+    public async Task<(int Row, int? Col)?> GetNextAvailablePosition(int boxId, IEnumerable<(int Row, int? Col)>? claimedPositions = null)
     {
         var box = await _context.Boxes.FindAsync(boxId);
         if (box == null) return null;
@@ -84,6 +84,13 @@ public class SampleService : ISampleService
         var occupiedSet = occupied
             .Select(p => (p.PositionRow!.Value, p.PositionCol ?? 1))
             .ToHashSet();
+
+        // Also treat in-batch claimed positions as occupied
+        if (claimedPositions != null)
+        {
+            foreach (var c in claimedPositions)
+                occupiedSet.Add((c.Row, c.Col ?? 1));
+        }
 
         // Determine grid dimensions from BoxType
         int rows, cols;

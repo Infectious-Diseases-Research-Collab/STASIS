@@ -156,6 +156,20 @@
         // ── Card counter (for unique index names in form binding) ───────────────
         let cardIndex = 1; // next index to use when adding (0 is the server-rendered card)
 
+        // ── Collect positions already claimed by other cards for the same box ──
+        function getClaimedPositions(excludeCard, boxId) {
+            const claimed = [];
+            document.querySelectorAll('.sample-card').forEach(c => {
+                if (c === excludeCard) return;
+                const sel = c.querySelector('.box-select');
+                if (!sel || sel.value != boxId) return;
+                const row = c.querySelector('.pos-row-input')?.value;
+                const col = c.querySelector('.pos-col-input')?.value;
+                if (row) claimed.push(`${row}:${col ?? ''}`);
+            });
+            return claimed;
+        }
+
         // ── Box select handler ──────────────────────────────────────────────────
         async function onBoxChange(select) {
             const card = select.closest('.sample-card');
@@ -179,7 +193,9 @@
             }
 
             try {
-                const resp = await fetch(`?handler=NextPosition&boxId=${boxId}`);
+                const claimed = getClaimedPositions(card, boxId);
+                const claimedParam = claimed.length ? '&claimed=' + encodeURIComponent(claimed.join(',')) : '';
+                const resp = await fetch(`?handler=NextPosition&boxId=${boxId}${claimedParam}`);
                 if (!resp.ok) throw new Error('Server error');
                 const data = await resp.json();
 

@@ -193,10 +193,25 @@ namespace STASIS.Pages.Samples
             return new JsonResult(new { taken });
         }
 
-        public async Task<IActionResult> OnGetNextPositionAsync(int boxId)
+        public async Task<IActionResult> OnGetNextPositionAsync(int boxId, string? claimed = null)
         {
             if (boxId <= 0) return BadRequest();
-            var pos = await _sampleService.GetNextAvailablePosition(boxId);
+
+            var claimedPositions = new List<(int Row, int? Col)>();
+            if (!string.IsNullOrEmpty(claimed))
+            {
+                foreach (var item in claimed.Split(',', StringSplitOptions.RemoveEmptyEntries))
+                {
+                    var parts = item.Split(':');
+                    if (parts.Length >= 1 && int.TryParse(parts[0], out var row))
+                    {
+                        int? col = parts.Length > 1 && int.TryParse(parts[1], out var c) ? c : null;
+                        claimedPositions.Add((row, col));
+                    }
+                }
+            }
+
+            var pos = await _sampleService.GetNextAvailablePosition(boxId, claimedPositions);
             if (pos == null)
                 return new JsonResult(new { full = true });
             return new JsonResult(new { row = pos.Value.Row, col = pos.Value.Col });
