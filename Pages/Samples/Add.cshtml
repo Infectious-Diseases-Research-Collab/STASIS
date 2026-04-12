@@ -311,6 +311,7 @@
 
             // Filter box dropdown to only show compatible box types
             const isFP = typeName.includes('filter paper');
+            const noTypeSelected = !typeName;
             const boxSelect = card.querySelector('.box-select');
             const currentBoxId = boxSelect.value;
             let currentStillValid = false;
@@ -318,7 +319,7 @@
                 if (!opt.value) return; // keep "— No box —"
                 const boxType = opt.dataset.boxtype || '';
                 const isFPBox = boxType === 'Filter Paper Binder';
-                const hide = isFP ? !isFPBox : isFPBox;
+                const hide = noTypeSelected ? false : (isFP ? !isFPBox : isFPBox);
                 opt.hidden = hide;
                 opt.disabled = hide;
                 if (opt.value === currentBoxId && !hide) currentStillValid = true;
