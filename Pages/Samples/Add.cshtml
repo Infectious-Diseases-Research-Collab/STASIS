@@ -153,6 +153,14 @@
             @:typeNames[@st.SampleTypeID] = '@st.TypeName.ToLower().Replace("'", "\\'")';
         }
 
+        // ── All boxes (used to repopulate dropdown on type change) ──────────────
+        const allBoxes = [
+            @foreach (var b in Model.AllBoxes)
+            {
+                @:{ id: @b.BoxID, display: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(b.Display)), boxType: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(b.BoxType)) },
+            }
+        ];
+
         // ── Card counter (for unique index names in form binding) ───────────────
         let cardIndex = 1; // next index to use when adding (0 is the server-rendered card)
 
@@ -309,23 +317,27 @@
                 wrapper.innerHTML = '';
             }
 
-            // Filter box dropdown to only show compatible box types
+            // Repopulate box dropdown with only compatible boxes
             const isFP = typeName.includes('filter paper');
-            const noTypeSelected = !typeName;
             const boxSelect = card.querySelector('.box-select');
             const currentBoxId = boxSelect.value;
+
+            const filtered = !typeName
+                ? allBoxes
+                : allBoxes.filter(b => isFP ? b.boxType === 'Filter Paper Binder' : b.boxType !== 'Filter Paper Binder');
+
+            boxSelect.innerHTML = '<option value="">— No box —</option>';
             let currentStillValid = false;
-            Array.from(boxSelect.options).forEach(opt => {
-                if (!opt.value) return; // keep "— No box —"
-                const boxType = opt.dataset.boxtype || '';
-                const isFPBox = boxType === 'Filter Paper Binder';
-                const hide = noTypeSelected ? false : (isFP ? !isFPBox : isFPBox);
-                opt.hidden = hide;
-                opt.disabled = hide;
-                if (opt.value === currentBoxId && !hide) currentStillValid = true;
+            filtered.forEach(b => {
+                const opt = document.createElement('option');
+                opt.value = b.id;
+                opt.textContent = b.display;
+                opt.dataset.boxtype = b.boxType;
+                if (String(b.id) === currentBoxId) { opt.selected = true; currentStillValid = true; }
+                boxSelect.appendChild(opt);
             });
+
             if (!currentStillValid && currentBoxId) {
-                boxSelect.value = '';
                 onBoxChange(boxSelect);
             }
         }
@@ -420,9 +432,14 @@
             const idx = cardIndex++;
             const box = document.getElementById('sampleContainer');
 
-            // Clone the box options HTML from the first card
-            const firstBoxSelect = box.querySelector('.box-select');
-            const boxOptionsHtml = cloneOptions(firstBoxSelect);
+            // Build box options from full allBoxes list (unfiltered — type not yet selected)
+            const boxOptionsHtml = '<option value="">— No box —</option>' + allBoxes.map(b => {
+                const opt = document.createElement('option');
+                opt.value = b.id;
+                opt.textContent = b.display;
+                opt.dataset.boxtype = b.boxType;
+                return opt.outerHTML;
+            }).join('');
 
             // Clone the type options HTML from the first card
             const firstTypeSelect = box.querySelector('.type-select');
