@@ -43,7 +43,8 @@ namespace STASIS.Pages.Samples
         public SelectList StudyOptions { get; set; } = new SelectList(Enumerable.Empty<object>());
         public SelectList VisitTypeOptions { get; set; } = new SelectList(Enumerable.Empty<object>());
         public SelectList SampleTypeOptions { get; set; } = new SelectList(Enumerable.Empty<object>());
-        public SelectList BoxOptions { get; set; } = new SelectList(Enumerable.Empty<object>());
+        public List<BoxOption> AllBoxes { get; set; } = new();
+        public record BoxOption(int BoxID, string Display, string BoxType);
         public List<SampleType> SampleTypes { get; set; } = new();
         public class SampleInput
         {
@@ -141,6 +142,31 @@ namespace STASIS.Pages.Samples
                 ModelState.AddModelError(string.Empty,
                     $"Duplicate box positions in batch: {string.Join(", ", positionConflicts)}");
                 await LoadDropdownsAsync();
+                return Page();
+            }
+
+            // Validate Filter Paper samples go only into Filter Paper Binder boxes
+            await LoadDropdownsAsync();
+            var boxTypeErrors = new List<string>();
+            foreach (var s in activeSamples.Where(s => s.BoxID.HasValue && s.SampleTypeID.HasValue))
+            {
+                var sampleType = SampleTypes.FirstOrDefault(t => t.SampleTypeID == s.SampleTypeID);
+                var box = AllBoxes.FirstOrDefault(b => b.BoxID == s.BoxID);
+                if (sampleType == null || box == null) continue;
+
+                bool isFP = sampleType.TypeName.Contains("filter paper", StringComparison.OrdinalIgnoreCase);
+                bool isFPBox = box.BoxType == "Filter Paper Binder";
+
+                if (isFP && !isFPBox)
+                    boxTypeErrors.Add($"{s.BarcodeID}: Filter Paper samples must go in a Filter Paper Binder box.");
+                else if (!isFP && isFPBox)
+                    boxTypeErrors.Add($"{s.BarcodeID}: Non-Filter Paper samples cannot go in a Filter Paper Binder box.");
+            }
+
+            if (boxTypeErrors.Any())
+            {
+                foreach (var err in boxTypeErrors)
+                    ModelState.AddModelError(string.Empty, err);
                 return Page();
             }
 
@@ -255,13 +281,11 @@ namespace STASIS.Pages.Samples
                 }
             }
 
-            BoxOptions = new SelectList(
-                allBoxes.OrderBy(b => b.BoxLabel).Select(b => new
-                {
-                    b.BoxID,
-                    Display = $"{b.BoxLabel} ({b.Rack?.Compartment?.Freezer?.FreezerName} \u203a {b.Rack?.Compartment?.CompartmentName} \u203a {b.Rack?.RackName})"
-                }),
-                "BoxID", "Display");
+            AllBoxes = allBoxes.OrderBy(b => b.BoxLabel).Select(b => new BoxOption(
+                b.BoxID,
+                $"{b.BoxLabel} ({b.Rack?.Compartment?.Freezer?.FreezerName} \u203a {b.Rack?.Compartment?.CompartmentName} \u203a {b.Rack?.RackName})",
+                b.BoxType
+            )).ToList();
         }
     }
 }

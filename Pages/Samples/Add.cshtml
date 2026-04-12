@@ -98,9 +98,9 @@
                         <label class="form-label fw-semibold small">Box <span class="text-muted fw-normal" style="font-size:.7rem;">optional</span></label>
                         <select name="Samples[0].BoxID" class="form-select box-select" onchange="onBoxChange(this)">
                             <option value="">— No box —</option>
-                            @foreach (var item in Model.BoxOptions)
+                            @foreach (var b in Model.AllBoxes)
                             {
-                                <option value="@item.Value">@item.Text</option>
+                                <option value="@b.BoxID" data-boxtype="@b.BoxType">@b.Display</option>
                             }
                         </select>
                     </div>
@@ -308,6 +308,25 @@
             } else {
                 wrapper.innerHTML = '';
             }
+
+            // Filter box dropdown to only show compatible box types
+            const isFP = typeName.includes('filter paper');
+            const boxSelect = card.querySelector('.box-select');
+            const currentBoxId = boxSelect.value;
+            let currentStillValid = false;
+            Array.from(boxSelect.options).forEach(opt => {
+                if (!opt.value) return; // keep "— No box —"
+                const boxType = opt.dataset.boxtype || '';
+                const isFPBox = boxType === 'Filter Paper Binder';
+                const hide = isFP ? !isFPBox : isFPBox;
+                opt.hidden = hide;
+                opt.disabled = hide;
+                if (opt.value === currentBoxId && !hide) currentStillValid = true;
+            });
+            if (!currentStillValid && currentBoxId) {
+                boxSelect.value = '';
+                onBoxChange(boxSelect);
+            }
         }
 
         function getCardIndex(card) {
@@ -391,6 +410,7 @@
                 opt.value = o.value;
                 opt.textContent = o.text;
                 if (o.dataset.typename) opt.dataset.typename = o.dataset.typename;
+                if (o.dataset.boxtype) opt.dataset.boxtype = o.dataset.boxtype;
                 return opt.outerHTML;
             }).join('');
         }
