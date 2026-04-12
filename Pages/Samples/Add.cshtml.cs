@@ -124,12 +124,8 @@ namespace STASIS.Pages.Samples
             }
 
             // Validate all barcodes are unique in the database
-            var takenBarcodes = new List<string>();
-            foreach (var s in activeSamples)
-            {
-                if (await _sampleService.IsBarcodeTaken(s.BarcodeID!.Trim()))
-                    takenBarcodes.Add(s.BarcodeID!.Trim());
-            }
+            var takenBarcodes = await _sampleService.GetTakenBarcodesAsync(
+                activeSamples.Select(s => s.BarcodeID!.Trim()));
 
             if (takenBarcodes.Any())
             {

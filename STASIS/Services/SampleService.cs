@@ -609,6 +609,15 @@ public class SampleService : ISampleService
             .ToListAsync();
     }
 
+    public async Task<List<string>> GetTakenBarcodesAsync(IEnumerable<string> barcodes)
+    {
+        var list = barcodes.ToList();
+        return await _context.Specimens
+            .Where(s => list.Contains(s.BarcodeID))
+            .Select(s => s.BarcodeID)
+            .ToListAsync();
+    }
+
     private static string[] ParseCsvLine(string line)
     {
         var fields = new List<string>();

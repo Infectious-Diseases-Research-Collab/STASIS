@@ -34,6 +34,9 @@ public interface ISampleService
 
     // Filter paper usage history
     Task<List<FilterPaperUsage>> GetFilterPaperUsageAsync(int specimenId);
+
+    // Batch barcode uniqueness check
+    Task<List<string>> GetTakenBarcodesAsync(IEnumerable<string> barcodes);
 }
 
 public class ImportResult
