@@ -52,6 +52,7 @@ namespace STASIS.Pages.Samples
             public string? BarcodeID { get; set; }
 
             [Display(Name = "Sample Type")]
+            [Required]
             public int? SampleTypeID { get; set; }
 
             [Display(Name = "Box")]
@@ -96,6 +97,17 @@ namespace STASIS.Pages.Samples
                 ModelState.AddModelError(string.Empty, "Enter at least one barcode.");
                 await LoadDropdownsAsync();
                 return Page();
+            }
+
+            // Validate all active samples have a SampleTypeID
+            for (int i = 0; i < activeSamples.Count; i++)
+            {
+                if (!activeSamples[i].SampleTypeID.HasValue)
+                {
+                    ModelState.AddModelError(string.Empty, $"Sample {i + 1}: Sample Type is required.");
+                    await LoadDropdownsAsync();
+                    return Page();
+                }
             }
 
             // Validate all barcodes are unique within the batch
