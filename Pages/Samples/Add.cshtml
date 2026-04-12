@@ -318,30 +318,70 @@
         }
 
         // ── Barcode uniqueness check ────────────────────────────────────────────
+        function setBarcodeStatus(input, state, message) {
+            const status = input.parentElement.querySelector('.barcode-status');
+            input.classList.remove('is-invalid', 'is-valid');
+            if (state === 'error') {
+                input.classList.add('is-invalid');
+                status.style.color = '#dc3545';
+            } else if (state === 'ok') {
+                input.classList.add('is-valid');
+                status.style.color = '#198754';
+            } else {
+                status.style.color = '';
+            }
+            status.textContent = message;
+        }
+
+        function getBatchDuplicate(excludeInput, val) {
+            return Array.from(document.querySelectorAll('.barcode-input'))
+                .find(i => i !== excludeInput && i.value.trim() === val);
+        }
+
+        async function validateBarcode(input) {
+            const val = input.value.trim();
+            if (!val) { setBarcodeStatus(input, '', ''); return; }
+
+            // Check in-batch duplicate first
+            const sibling = getBatchDuplicate(input, val);
+            if (sibling) {
+                setBarcodeStatus(input, 'error', 'Duplicate barcode in this batch.');
+                return;
+            }
+
+            // Check database
+            try {
+                const resp = await fetch(`?handler=CheckBarcode&barcode=${encodeURIComponent(val)}`);
+                if (!resp.ok) throw new Error();
+                const data = await resp.json();
+                if (data.taken) {
+                    setBarcodeStatus(input, 'error', 'This barcode is already in use.');
+                } else {
+                    setBarcodeStatus(input, 'ok', '✓ Available');
+                }
+            } catch {
+                setBarcodeStatus(input, '', '');
+            }
+        }
+
         let barcodeTimers = {};
         document.addEventListener('input', function (e) {
             if (!e.target.classList.contains('barcode-input')) return;
             const input = e.target;
-            const status = input.parentElement.querySelector('.barcode-status');
             clearTimeout(barcodeTimers[input.name]);
             const val = input.value.trim();
-            if (!val) { status.textContent = ''; return; }
-            barcodeTimers[input.name] = setTimeout(async () => {
-                try {
-                    const resp = await fetch(`?handler=CheckBarcode&barcode=${encodeURIComponent(val)}`);
-                    if (!resp.ok) throw new Error('Server error');
-                    const data = await resp.json();
-                    if (data.taken) {
-                        status.textContent = 'This barcode is already in use.';
-                        status.style.color = '#dc3545';
-                    } else {
-                        status.textContent = '✓ Available';
-                        status.style.color = '#198754';
-                    }
-                } catch {
-                    status.textContent = '';
+
+            // Immediately re-validate any other card that shares this value,
+            // so fixing a duplicate clears the sibling's error in real time.
+            document.querySelectorAll('.barcode-input').forEach(other => {
+                if (other === input) return;
+                if (other.value.trim() === val || other.classList.contains('is-invalid')) {
+                    clearTimeout(barcodeTimers[other.name]);
+                    barcodeTimers[other.name] = setTimeout(() => validateBarcode(other), 400);
                 }
-            }, 400);
+            });
+
+            barcodeTimers[input.name] = setTimeout(() => validateBarcode(input), 400);
         });
 
         // ── Add / Remove cards ──────────────────────────────────────────────────
