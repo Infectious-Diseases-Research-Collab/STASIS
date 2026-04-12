@@ -1,0 +1,105 @@
+@page
+@model STASIS.Pages.Boxes.CreateModel
+@{
+    ViewData["Title"] = "Create New Box";
+}
+
+<h1>@ViewData["Title"]</h1>
+
+<div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+
+<form method="post" style="max-width:600px;">
+    <div class="row g-3">
+        <div class="col-md-6">
+            <label asp-for="BoxLabel" class="form-label">Box Label <span class="text-danger">*</span></label>
+            <input asp-for="BoxLabel" class="form-control" placeholder="e.g. BOX-101" autofocus />
+            <span asp-validation-for="BoxLabel" class="text-danger small"></span>
+        </div>
+        <div class="col-md-6">
+            <label asp-for="BoxType" class="form-label">Box Type <span class="text-danger">*</span></label>
+            <select asp-for="BoxType" class="form-select">
+                <option value="">— Select —</option>
+                @foreach (var t in STASIS.Pages.Boxes.CreateModel.BoxTypes)
+                {
+                    <option value="@t">@t</option>
+                }
+            </select>
+            <span asp-validation-for="BoxType" class="text-danger small"></span>
+        </div>
+
+        <div class="col-12">
+            <h5 class="mt-2">Assign to Rack <span class="text-muted fw-normal fs-6">(optional)</span></h5>
+        </div>
+        <div class="col-md-4">
+            <label class="form-label">Freezer</label>
+            <select id="freezerSelect" class="form-select">
+                <option value="">— Select —</option>
+                @foreach (var item in Model.FreezerOptions)
+                {
+                    <option value="@item.Value">@item.Text</option>
+                }
+            </select>
+        </div>
+        <div class="col-md-4">
+            <label class="form-label">Compartment</label>
+            <select id="compartmentSelect" class="form-select">
+                <option value="">— Select freezer first —</option>
+            </select>
+        </div>
+        <div class="col-md-4">
+            <label class="form-label">Rack</label>
+            <select asp-for="RackId" id="rackSelect" class="form-select">
+                <option value="">— Select compartment first —</option>
+            </select>
+        </div>
+
+        <div class="col-12 mt-2">
+            <button type="submit" class="btn btn-primary">Create Box</button>
+            <a asp-page="/Boxes" class="btn btn-secondary ms-2">Cancel</a>
+        </div>
+    </div>
+</form>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        const freezerSelect = document.getElementById('freezerSelect');
+        const compartmentSelect = document.getElementById('compartmentSelect');
+        const rackSelect = document.getElementById('rackSelect');
+
+        freezerSelect.addEventListener('change', async function () {
+            compartmentSelect.innerHTML = '<option value="">Loading...</option>';
+            rackSelect.innerHTML = '<option value="">— Select compartment first —</option>';
+            if (!this.value) {
+                compartmentSelect.innerHTML = '<option value="">— Select freezer first —</option>';
+                return;
+            }
+            const resp = await fetch('?handler=Compartments&freezerId=' + this.value);
+            const compartments = await resp.json();
+            compartmentSelect.innerHTML = '<option value="">— Select —</option>';
+            compartments.forEach(c => {
+                const opt = document.createElement('option');
+                opt.value = c.compartmentID;
+                opt.textContent = c.compartmentName;
+                compartmentSelect.appendChild(opt);
+            });
+        });
+
+        compartmentSelect.addEventListener('change', async function () {
+            rackSelect.innerHTML = '<option value="">Loading...</option>';
+            if (!this.value) {
+                rackSelect.innerHTML = '<option value="">— Select compartment first —</option>';
+                return;
+            }
+            const resp = await fetch('?handler=Racks&compartmentId=' + this.value);
+            const racks = await resp.json();
+            rackSelect.innerHTML = '<option value="">— No rack (unassigned) —</option>';
+            racks.forEach(r => {
+                const opt = document.createElement('option');
+                opt.value = r.rackID;
+                opt.textContent = r.rackName;
+                rackSelect.appendChild(opt);
+            });
+        });
+    </script>
+}

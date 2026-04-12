@@ -185,6 +185,20 @@ public class StorageService : IStorageService
             await CheckAndUnassignEmptyBoxAsync(oldBoxId.Value);
     }
 
+    public async Task<Box> CreateBoxAsync(string label, string boxType, int? rackId, string userId)
+    {
+        var box = new Box
+        {
+            BoxLabel = label,
+            BoxType = boxType,
+            RackID = rackId
+        };
+        _context.Boxes.Add(box);
+        await _context.SaveChangesAsync();
+        await _auditService.LogChangeAsync("tbl_Boxes", box.BoxID.ToString(), "BoxLabel", null, label, userId);
+        return box;
+    }
+
     public async Task CheckAndUnassignEmptyBoxAsync(int boxId)
     {
         var box = await _context.Boxes
