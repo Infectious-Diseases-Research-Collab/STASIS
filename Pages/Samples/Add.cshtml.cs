@@ -261,29 +261,12 @@ namespace STASIS.Pages.Samples
             SampleTypes = await _sampleService.GetAllSampleTypes();
             SampleTypeOptions = new SelectList(SampleTypes, "SampleTypeID", "TypeName");
 
-            var freezers = await _storageService.GetAllFreezers();
-            var allBoxes = new List<Box>();
-            foreach (var freezer in freezers)
-            {
-                var compartments = await _storageService.GetCompartmentsByFreezer(freezer.FreezerID);
-                foreach (var compartment in compartments)
-                {
-                    compartment.Freezer = freezer;
-                    var racks = await _storageService.GetRacksByCompartment(compartment.CompartmentID);
-                    foreach (var rack in racks)
-                    {
-                        rack.Compartment = compartment;
-                        var boxes = await _storageService.GetBoxesByRack(rack.RackID);
-                        foreach (var box in boxes)
-                            box.Rack = rack;
-                        allBoxes.AddRange(boxes);
-                    }
-                }
-            }
-
-            AllBoxes = allBoxes.OrderBy(b => b.BoxLabel).Select(b => new BoxOption(
+            var allBoxes = await _storageService.GetAllBoxesAsync();
+            AllBoxes = allBoxes.Select(b => new BoxOption(
                 b.BoxID,
-                $"{b.BoxLabel} ({b.Rack?.Compartment?.Freezer?.FreezerName} \u203a {b.Rack?.Compartment?.CompartmentName} \u203a {b.Rack?.RackName})",
+                b.Rack != null
+                    ? $"{b.BoxLabel} ({b.Rack.Compartment?.Freezer?.FreezerName} \u203a {b.Rack.Compartment?.CompartmentName} \u203a {b.Rack.RackName})"
+                    : $"{b.BoxLabel} (unassigned)",
                 b.BoxType
             )).ToList();
         }

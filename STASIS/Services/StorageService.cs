@@ -52,6 +52,16 @@ public class StorageService : IStorageService
             .FirstOrDefaultAsync(b => b.BoxID == boxId);
     }
 
+    public async Task<List<Box>> GetAllBoxesAsync()
+    {
+        return await _context.Boxes
+            .Include(b => b.Rack)
+                .ThenInclude(r => r!.Compartment)
+                    .ThenInclude(c => c!.Freezer)
+            .OrderBy(b => b.BoxLabel)
+            .ToListAsync();
+    }
+
     public async Task<List<string>> GetAllBoxLabelsAsync()
     {
         return await _context.Boxes
