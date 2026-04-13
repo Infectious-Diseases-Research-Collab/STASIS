@@ -41,6 +41,24 @@ These items have groundwork in place but need additional work to be fully functi
 - **What's missing:** No xUnit test project created yet. No tests coded.
 - **Where to implement:** Create `STASIS.Tests` project per guide in manual testing doc.
 
+### 6. Batch Add — Rich Success Summary (Batch Entry feature)
+
+- **What exists:** After a successful batch save, the success summary shows a bulleted list of created barcodes.
+- **What's missing:** The design spec calls for a table listing each created specimen with Barcode, Type, Box, and Position columns.
+- **Where to implement:** `Pages/Samples/Add.cshtml.cs` — expand `TempData["CreatedBarcodes"]` to `TempData["CreatedSpecimens"]` (JSON array of `{barcode, type, box, position}`), and update the summary table in `Add.cshtml` to render those columns.
+
+### 7. Filter Paper Position Uniqueness Gap (Batch Entry feature)
+
+- **What exists:** A `UNIQUE ("BoxID", "PositionRow", "PositionCol")` index on `tbl_Specimens`. In-batch position conflict check in `AddModel.OnPostAsync`.
+- **What's missing:** PostgreSQL treats `NULL` values as distinct in unique constraints, so two Filter Paper specimens with `(BoxID=X, PositionRow=Y, PositionCol=NULL)` do not violate the constraint. The in-batch check catches same-request conflicts, but concurrent requests or manual DB inserts can produce duplicate physical slots.
+- **Where to implement:** Add a partial unique index scoped to `WHERE "PositionCol" IS NULL` (e.g., `UNIQUE ("BoxID", "PositionRow") WHERE "PositionCol" IS NULL`) as a separate EF migration and SQL script entry. Requires testing against the existing Filter Paper unique-position behaviour.
+
+### 8. GetOccupiedPositions drops Filter Paper positions
+
+- **What exists:** `SampleService.GetOccupiedPositions` filters `WHERE PositionCol != null`, silently omitting all Filter Paper Binder specimens (col is always null).
+- **Impact:** The handler `OnGetOccupiedPositionsAsync` is currently unused by the Add page JS, so no runtime failure today. Any future caller relying on it for FP Binder boxes will receive an empty set.
+- **Fix:** Remove the `PositionCol != null` predicate and change the return type to `List<(int Row, int? Col)>`.
+
 ---
 
 ## Resolved Items

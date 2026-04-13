@@ -11,6 +11,7 @@ public class StasisDbContext : IdentityDbContext
     }
 
     public DbSet<Study> Studies { get; set; }
+    public DbSet<VisitType> VisitTypes { get; set; }
     public DbSet<SampleType> SampleTypes { get; set; }
     public DbSet<UserProfile> UserProfiles { get; set; }
     public DbSet<Freezer> Freezers { get; set; }
@@ -31,6 +32,7 @@ public class StasisDbContext : IdentityDbContext
         base.OnModelCreating(modelBuilder);
 
         modelBuilder.Entity<Study>().ToTable("tbl_Studies");
+        modelBuilder.Entity<VisitType>().ToTable("tbl_VisitTypes");
         modelBuilder.Entity<SampleType>().ToTable("tbl_SampleTypes");
         modelBuilder.Entity<UserProfile>().ToTable("tbl_UserProfiles");
         modelBuilder.Entity<Freezer>().ToTable("tbl_Freezers");
@@ -91,6 +93,16 @@ public class StasisDbContext : IdentityDbContext
         modelBuilder.Entity<Study>()
             .HasIndex(s => s.StudyCode)
             .IsUnique();
+
+        modelBuilder.Entity<VisitType>()
+            .HasIndex(v => v.VisitTypeName)
+            .IsUnique();
+
+        modelBuilder.Entity<Specimen>()
+            .HasOne(s => s.VisitType)
+            .WithMany(v => v.Specimens)
+            .HasForeignKey(s => s.VisitTypeID)
+            .OnDelete(DeleteBehavior.Restrict);
 
         modelBuilder.Entity<SampleType>()
             .HasIndex(st => st.TypeName)

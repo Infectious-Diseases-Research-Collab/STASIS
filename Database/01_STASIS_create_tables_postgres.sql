@@ -21,6 +21,7 @@ SET row_security = off;
 
 ALTER TABLE IF EXISTS ONLY public."tbl_UserProfiles" DROP CONSTRAINT IF EXISTS "FK_UserProfiles_AspNetUsers";
 ALTER TABLE IF EXISTS ONLY public."tbl_Specimens" DROP CONSTRAINT IF EXISTS "FK_Specimens_Studies";
+ALTER TABLE IF EXISTS ONLY public."tbl_Specimens" DROP CONSTRAINT IF EXISTS "FK_Specimens_VisitTypes";
 ALTER TABLE IF EXISTS ONLY public."tbl_Specimens" DROP CONSTRAINT IF EXISTS "FK_Specimens_SampleTypes";
 ALTER TABLE IF EXISTS ONLY public."tbl_Specimens" DROP CONSTRAINT IF EXISTS "FK_Specimens_DiscardApproval";
 ALTER TABLE IF EXISTS ONLY public."tbl_Specimens" DROP CONSTRAINT IF EXISTS "FK_Specimens_Boxes";
@@ -65,12 +66,14 @@ ALTER TABLE IF EXISTS ONLY public."tbl_Studies" DROP CONSTRAINT IF EXISTS "UQ_St
 ALTER TABLE IF EXISTS ONLY public."tbl_Specimens" DROP CONSTRAINT IF EXISTS "UQ_Specimens_BoxPosition";
 ALTER TABLE IF EXISTS ONLY public."tbl_Specimens" DROP CONSTRAINT IF EXISTS "UQ_Specimens_BarcodeID";
 ALTER TABLE IF EXISTS ONLY public."tbl_SampleTypes" DROP CONSTRAINT IF EXISTS "UQ_SampleTypes_TypeName";
+ALTER TABLE IF EXISTS ONLY public."tbl_VisitTypes" DROP CONSTRAINT IF EXISTS "UQ_VisitTypes_VisitTypeName";
 ALTER TABLE IF EXISTS ONLY public."tbl_Freezers" DROP CONSTRAINT IF EXISTS "UQ_Freezers_FreezerName";
 ALTER TABLE IF EXISTS ONLY public."tbl_Compartments" DROP CONSTRAINT IF EXISTS "UQ_Compartments_FreezerCompartment";
 ALTER TABLE IF EXISTS ONLY public."tbl_Boxes" DROP CONSTRAINT IF EXISTS "UQ_Boxes_BoxLabel";
 ALTER TABLE IF EXISTS ONLY public."__EFMigrationsHistory" DROP CONSTRAINT IF EXISTS "PK___EFMigrationsHistory";
 ALTER TABLE IF EXISTS ONLY public."tbl_UserProfiles" DROP CONSTRAINT IF EXISTS "PK_UserProfiles";
 ALTER TABLE IF EXISTS ONLY public."tbl_Studies" DROP CONSTRAINT IF EXISTS "PK_Studies";
+ALTER TABLE IF EXISTS ONLY public."tbl_VisitTypes" DROP CONSTRAINT IF EXISTS "PK_VisitTypes";
 ALTER TABLE IF EXISTS ONLY public."tbl_Specimens" DROP CONSTRAINT IF EXISTS "PK_Specimens";
 ALTER TABLE IF EXISTS ONLY public."tbl_Shipments" DROP CONSTRAINT IF EXISTS "PK_Shipments";
 ALTER TABLE IF EXISTS ONLY public."tbl_ShipmentRequests" DROP CONSTRAINT IF EXISTS "PK_ShipmentRequests";
@@ -91,29 +94,30 @@ ALTER TABLE IF EXISTS ONLY public."AspNetUserClaims" DROP CONSTRAINT IF EXISTS "
 ALTER TABLE IF EXISTS ONLY public."AspNetRoles" DROP CONSTRAINT IF EXISTS "PK_AspNetRoles";
 ALTER TABLE IF EXISTS ONLY public."AspNetRoleClaims" DROP CONSTRAINT IF EXISTS "PK_AspNetRoleClaims";
 ALTER TABLE IF EXISTS ONLY public."tbl_Approvals" DROP CONSTRAINT IF EXISTS "PK_Approvals";
-DROP TABLE IF EXISTS public."tbl_UserProfiles";
-DROP TABLE IF EXISTS public."tbl_Studies";
-DROP TABLE IF EXISTS public."tbl_Specimens";
-DROP TABLE IF EXISTS public."tbl_Shipments";
-DROP TABLE IF EXISTS public."tbl_ShipmentRequests";
-DROP TABLE IF EXISTS public."tbl_ShipmentContents";
-DROP TABLE IF EXISTS public."tbl_ShipmentBatches";
-DROP TABLE IF EXISTS public."tbl_SampleTypes";
-DROP TABLE IF EXISTS public."tbl_Racks";
-DROP TABLE IF EXISTS public."tbl_Compartments";
-DROP TABLE IF EXISTS public."tbl_Freezers";
-DROP TABLE IF EXISTS public."tbl_FilterPaperUsages";
-DROP TABLE IF EXISTS public."tbl_Boxes";
-DROP TABLE IF EXISTS public."tbl_AuditLog";
-DROP TABLE IF EXISTS public."tbl_Approvals";
-DROP TABLE IF EXISTS public."__EFMigrationsHistory";
-DROP TABLE IF EXISTS public."AspNetUsers";
-DROP TABLE IF EXISTS public."AspNetUserTokens";
-DROP TABLE IF EXISTS public."AspNetUserRoles";
-DROP TABLE IF EXISTS public."AspNetUserLogins";
-DROP TABLE IF EXISTS public."AspNetUserClaims";
-DROP TABLE IF EXISTS public."AspNetRoles";
-DROP TABLE IF EXISTS public."AspNetRoleClaims";
+DROP TABLE IF EXISTS public."tbl_UserProfiles" CASCADE;
+DROP TABLE IF EXISTS public."tbl_VisitTypes" CASCADE;
+DROP TABLE IF EXISTS public."tbl_Studies" CASCADE;
+DROP TABLE IF EXISTS public."tbl_Specimens" CASCADE;
+DROP TABLE IF EXISTS public."tbl_Shipments" CASCADE;
+DROP TABLE IF EXISTS public."tbl_ShipmentRequests" CASCADE;
+DROP TABLE IF EXISTS public."tbl_ShipmentContents" CASCADE;
+DROP TABLE IF EXISTS public."tbl_ShipmentBatches" CASCADE;
+DROP TABLE IF EXISTS public."tbl_SampleTypes" CASCADE;
+DROP TABLE IF EXISTS public."tbl_Racks" CASCADE;
+DROP TABLE IF EXISTS public."tbl_Compartments" CASCADE;
+DROP TABLE IF EXISTS public."tbl_Freezers" CASCADE;
+DROP TABLE IF EXISTS public."tbl_FilterPaperUsages" CASCADE;
+DROP TABLE IF EXISTS public."tbl_Boxes" CASCADE;
+DROP TABLE IF EXISTS public."tbl_AuditLog" CASCADE;
+DROP TABLE IF EXISTS public."tbl_Approvals" CASCADE;
+DROP TABLE IF EXISTS public."__EFMigrationsHistory" CASCADE;
+DROP TABLE IF EXISTS public."AspNetUsers" CASCADE;
+DROP TABLE IF EXISTS public."AspNetUserTokens" CASCADE;
+DROP TABLE IF EXISTS public."AspNetUserRoles" CASCADE;
+DROP TABLE IF EXISTS public."AspNetUserLogins" CASCADE;
+DROP TABLE IF EXISTS public."AspNetUserClaims" CASCADE;
+DROP TABLE IF EXISTS public."AspNetRoles" CASCADE;
+DROP TABLE IF EXISTS public."AspNetRoleClaims" CASCADE;
 SET default_tablespace = '';
 
 SET default_table_access_method = heap;
@@ -624,6 +628,7 @@ CREATE TABLE public."tbl_Specimens" (
     "BarcodeID" character varying(100) NOT NULL,
     "LegacyID" character varying(100),
     "StudyID" integer,
+    "VisitTypeID" integer,
     "SampleTypeID" integer,
     "CollectionDate" timestamp without time zone,
     "BoxID" integer,
@@ -633,9 +638,11 @@ CREATE TABLE public."tbl_Specimens" (
     "SpotsShippedInternational" integer DEFAULT 0 NOT NULL,
     "SpotsReservedLocal" integer DEFAULT 0 NOT NULL,
     "AliquotNumber" integer,
+    "ParticipantID" character varying(100),
+    "CellCount" integer,
     "DiscardApprovalID" integer,
     "Status" character varying(50) DEFAULT 'In-Stock'::character varying NOT NULL,
-    CONSTRAINT "CK_Specimens_AliquotNumber" CHECK ((("AliquotNumber" IS NULL) OR ("AliquotNumber" = ANY (ARRAY[1, 2])))),
+    CONSTRAINT "CK_Specimens_AliquotNumber" CHECK ((("AliquotNumber" IS NULL) OR ("AliquotNumber" = ANY (ARRAY[1, 2, 3])))),
     CONSTRAINT "CK_Specimens_Status" CHECK ((("Status")::text = ANY ((ARRAY['In-Stock'::character varying, 'Staged'::character varying, 'Shipped'::character varying, 'Missing'::character varying, 'Depleted'::character varying, 'Discarded'::character varying, 'Temp'::character varying, 'Not Yet Received'::character varying])::text[])))
 );
 
@@ -651,6 +658,20 @@ ALTER TABLE public."tbl_Specimens" ALTER COLUMN "SpecimenID" ADD GENERATED BY DE
     NO MINVALUE
     NO MAXVALUE
     CACHE 1
+);
+
+
+--
+-- Name: tbl_VisitTypes; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public."tbl_VisitTypes" (
+    "VisitTypeID" integer NOT NULL GENERATED BY DEFAULT AS IDENTITY (
+        SEQUENCE NAME public."tbl_VisitTypes_VisitTypeID_seq"
+        START WITH 1 INCREMENT BY 1 NO MINVALUE NO MAXVALUE CACHE 1),
+    "VisitTypeName" character varying(100) NOT NULL,
+    CONSTRAINT "PK_VisitTypes" PRIMARY KEY ("VisitTypeID"),
+    CONSTRAINT "UQ_VisitTypes_VisitTypeName" UNIQUE ("VisitTypeName")
 );
 
 
@@ -1006,6 +1027,13 @@ CREATE INDEX "IX_AuditLog_Timestamp" ON public."tbl_AuditLog" USING btree ("Time
 
 
 --
+-- Name: IX_Specimens_ParticipantID; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX "IX_Specimens_ParticipantID" ON public."tbl_Specimens" USING btree ("ParticipantID");
+
+
+--
 -- Name: RoleNameIndex; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -1265,6 +1293,15 @@ ALTER TABLE ONLY public."tbl_Specimens"
 
 ALTER TABLE ONLY public."tbl_Specimens"
     ADD CONSTRAINT "FK_Specimens_Studies" FOREIGN KEY ("StudyID") REFERENCES public."tbl_Studies"("StudyID");
+
+
+--
+-- Name: tbl_Specimens FK_Specimens_VisitTypes; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public."tbl_Specimens"
+    ADD CONSTRAINT "FK_Specimens_VisitTypes" FOREIGN KEY ("VisitTypeID")
+        REFERENCES public."tbl_VisitTypes"("VisitTypeID") ON DELETE RESTRICT;
 
 
 --

@@ -52,6 +52,16 @@ public class StorageService : IStorageService
             .FirstOrDefaultAsync(b => b.BoxID == boxId);
     }
 
+    public async Task<List<Box>> GetAllBoxesAsync()
+    {
+        return await _context.Boxes
+            .Include(b => b.Rack)
+                .ThenInclude(r => r!.Compartment)
+                    .ThenInclude(c => c!.Freezer)
+            .OrderBy(b => b.BoxLabel)
+            .ToListAsync();
+    }
+
     public async Task<List<string>> GetAllBoxLabelsAsync()
     {
         return await _context.Boxes
@@ -183,6 +193,20 @@ public class StorageService : IStorageService
 
         if (oldBoxId.HasValue)
             await CheckAndUnassignEmptyBoxAsync(oldBoxId.Value);
+    }
+
+    public async Task<Box> CreateBoxAsync(string label, string boxType, int? rackId, string userId)
+    {
+        var box = new Box
+        {
+            BoxLabel = label,
+            BoxType = boxType,
+            RackID = rackId
+        };
+        _context.Boxes.Add(box);
+        await _context.SaveChangesAsync();
+        await _auditService.LogChangeAsync("tbl_Boxes", box.BoxID.ToString(), "BoxLabel", null, label, userId);
+        return box;
     }
 
     public async Task CheckAndUnassignEmptyBoxAsync(int boxId)
