@@ -1,4 +1,8 @@
-# STASIS
+```text
+╔═╗╔╦╗╔═╗╔═╗╦╔═╗
+╚═╗ ║ ╠═╣╚═╗║╚═╗
+╚═╝ ╩ ╩ ╩╚═╝╩╚═╝
+```
 
 This project is the Specimen Tracking And Storage Information System (STASIS).
 
