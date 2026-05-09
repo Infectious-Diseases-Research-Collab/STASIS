@@ -24,7 +24,7 @@ namespace STASIS.Pages.Boxes
         [BindProperty(SupportsGet = true)]
         public string? Barcode { get; set; }
 
-        [BindProperty]
+        [BindProperty(SupportsGet = true)]
         public int? SpecimenId { get; set; }
 
         [BindProperty]
@@ -40,13 +40,22 @@ namespace STASIS.Pages.Boxes
         public bool MoveToTemp { get; set; }
 
         public Specimen? FoundSpecimen { get; set; }
+        public List<Specimen> AmbiguousSpecimens { get; set; } = new();
         public SelectList BoxOptions { get; set; } = new SelectList(Enumerable.Empty<object>());
 
         public async Task OnGetAsync()
         {
-            if (!string.IsNullOrEmpty(Barcode))
+            if (SpecimenId.HasValue)
             {
-                FoundSpecimen = await _sampleService.GetSpecimenByBarcode(Barcode);
+                FoundSpecimen = await _sampleService.GetSpecimenDetailAsync(SpecimenId.Value);
+            }
+            else if (!string.IsNullOrEmpty(Barcode))
+            {
+                var matches = await _sampleService.GetSpecimensByBarcode(Barcode);
+                if (matches.Count == 1)
+                    FoundSpecimen = matches[0];
+                else if (matches.Count > 1)
+                    AmbiguousSpecimens = matches;
             }
             await LoadBoxOptionsAsync();
         }
@@ -76,7 +85,8 @@ namespace STASIS.Pages.Boxes
             catch (DbUpdateException)
             {
                 ModelState.AddModelError(string.Empty, "That position is already occupied.");
-                FoundSpecimen = await _sampleService.GetSpecimenByBarcode(Barcode ?? "");
+                if (SpecimenId.HasValue)
+                    FoundSpecimen = await _sampleService.GetSpecimenDetailAsync(SpecimenId.Value);
                 await LoadBoxOptionsAsync();
                 return Page();
             }

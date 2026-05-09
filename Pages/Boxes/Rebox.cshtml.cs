@@ -37,11 +37,31 @@ namespace STASIS.Pages.Boxes
             await LoadBoxOptionsAsync();
         }
 
-        public async Task<IActionResult> OnGetLookupAsync(string barcode)
+        public async Task<IActionResult> OnGetLookupAsync(string barcode, int? specimenId = null)
         {
-            var specimen = await _sampleService.GetSpecimenByBarcode(barcode);
-            if (specimen == null)
-                return new JsonResult(new { found = false });
+            Specimen? specimen = null;
+
+            if (specimenId.HasValue)
+            {
+                specimen = await _sampleService.GetSpecimenDetailAsync(specimenId.Value);
+                if (specimen == null) return new JsonResult(new { found = false });
+            }
+            else
+            {
+                var matches = await _sampleService.GetSpecimensByBarcode(barcode);
+                if (matches.Count == 0)
+                    return new JsonResult(new { found = false });
+
+                if (matches.Count > 1)
+                    return new JsonResult(new
+                    {
+                        found = false,
+                        ambiguous = true,
+                        studies = matches.Select(s => new { specimenId = s.SpecimenID, study = s.Study?.StudyCode ?? "?" }).ToList()
+                    });
+
+                specimen = matches[0];
+            }
 
             return new JsonResult(new
             {

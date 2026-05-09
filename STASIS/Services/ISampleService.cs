@@ -7,8 +7,8 @@ public interface ISampleService
     Task<(List<Specimen> Specimens, int TotalCount)> GetSpecimensAsync(string? searchString, int? studyId, int? sampleTypeId, string? participantId, int pageIndex, int pageSize);
     Task<List<Study>> GetAllStudies();
     Task<List<SampleType>> GetAllSampleTypes();
-    Task<Specimen?> GetSpecimenByBarcode(string barcode);
-    Task<bool> IsBarcodeTaken(string barcode);
+    Task<List<Specimen>> GetSpecimensByBarcode(string barcode);
+    Task<bool> IsBarcodeTaken(string barcode, int studyId);
     Task<List<(int Row, int Col)>> GetOccupiedPositions(int boxId);
     Task AddSpecimen(Specimen specimen);
     Task<List<VisitType>> GetAllVisitTypes();
@@ -35,8 +35,8 @@ public interface ISampleService
     // Filter paper usage history
     Task<List<FilterPaperUsage>> GetFilterPaperUsageAsync(int specimenId);
 
-    // Batch barcode uniqueness check
-    Task<List<string>> GetTakenBarcodesAsync(IEnumerable<string> barcodes);
+    // Batch barcode uniqueness check (scoped to a study)
+    Task<List<string>> GetTakenBarcodesAsync(IEnumerable<string> barcodes, int studyId);
 }
 
 public class ImportResult

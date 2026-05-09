@@ -166,7 +166,7 @@ public class StasisDbContext : IdentityDbContext
             .OnDelete(DeleteBehavior.Restrict);
 
         modelBuilder.Entity<Specimen>()
-            .HasIndex(s => s.BarcodeID)
+            .HasIndex(s => new { s.StudyID, s.BarcodeID })
             .IsUnique();
 
         modelBuilder.Entity<Specimen>()

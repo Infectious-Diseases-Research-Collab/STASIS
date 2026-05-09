@@ -28,6 +28,7 @@ namespace STASIS.Pages.Samples
         public string ParticipantID { get; set; } = string.Empty;
 
         [BindProperty]
+        [Required(ErrorMessage = "Study is required.")]
         public int? StudyID { get; set; }
 
         [BindProperty]
@@ -88,10 +89,13 @@ namespace STASIS.Pages.Samples
                 return Page();
             }
 
-            // Filter out blank cards (no barcode)
+            // Filter out blank cards (no barcode) and normalize to uppercase
             var activeSamples = Samples
                 .Where(s => !string.IsNullOrWhiteSpace(s.BarcodeID))
                 .ToList();
+
+            foreach (var s in activeSamples)
+                s.BarcodeID = s.BarcodeID!.Trim().ToUpperInvariant();
 
             if (!activeSamples.Any())
             {
@@ -111,7 +115,7 @@ namespace STASIS.Pages.Samples
 
             // Validate all barcodes are unique within the batch
             var duplicatesInBatch = activeSamples
-                .GroupBy(s => s.BarcodeID!.Trim(), StringComparer.OrdinalIgnoreCase)
+                .GroupBy(s => s.BarcodeID!)
                 .Where(g => g.Count() > 1)
                 .Select(g => g.Key)
                 .ToList();
@@ -123,9 +127,9 @@ namespace STASIS.Pages.Samples
                 return Page();
             }
 
-            // Validate all barcodes are unique in the database
+            // Validate all barcodes are unique in the database (scoped to this study)
             var takenBarcodes = await _sampleService.GetTakenBarcodesAsync(
-                activeSamples.Select(s => s.BarcodeID!.Trim()));
+                activeSamples.Select(s => s.BarcodeID!), StudyID!.Value);
 
             if (takenBarcodes.Any())
             {
@@ -177,9 +181,9 @@ namespace STASIS.Pages.Samples
 
             var specimens = activeSamples.Select(s => new Specimen
             {
-                BarcodeID = s.BarcodeID!.Trim(),
+                BarcodeID = s.BarcodeID!,
                 ParticipantID = ParticipantID,
-                StudyID = StudyID,
+                StudyID = StudyID!.Value,
                 VisitTypeID = VisitTypeID,
                 CollectionDate = CollectionDate.HasValue
                     ? DateTime.SpecifyKind(CollectionDate.Value, DateTimeKind.Utc)
@@ -213,11 +217,11 @@ namespace STASIS.Pages.Samples
             return RedirectToPage();
         }
 
-        public async Task<IActionResult> OnGetCheckBarcodeAsync(string barcode)
+        public async Task<IActionResult> OnGetCheckBarcodeAsync(string barcode, int? studyId)
         {
-            if (string.IsNullOrWhiteSpace(barcode) || barcode.Length > 100)
+            if (string.IsNullOrWhiteSpace(barcode) || barcode.Length > 100 || studyId == null)
                 return new JsonResult(new { taken = false });
-            var taken = await _sampleService.IsBarcodeTaken(barcode);
+            var taken = await _sampleService.IsBarcodeTaken(barcode, studyId.Value);
             return new JsonResult(new { taken });
         }
 

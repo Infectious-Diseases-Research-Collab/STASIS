@@ -40,33 +40,29 @@ namespace STASIS.Pages.Samples
 
             var barcodeList = Barcodes
                 .Split(new[] { '\n', '\r', ',' }, StringSplitOptions.RemoveEmptyEntries)
-                .Select(b => b.Trim())
+                .Select(b => b.Trim().ToUpperInvariant())
                 .Where(b => !string.IsNullOrEmpty(b))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Distinct()
                 .ToList();
 
             foreach (var barcode in barcodeList)
             {
-                var specimen = await _sampleService.GetSpecimenByBarcode(barcode);
-                if (specimen == null)
+                var matches = await _sampleService.GetSpecimensByBarcode(barcode);
+                if (matches.Count == 0)
                 {
                     NotFoundBarcodes.Add(barcode);
+                    continue;
                 }
-                else if (specimen.Status == "Discarded")
+                foreach (var specimen in matches)
                 {
-                    InvalidBarcodes.Add($"{barcode} (already discarded)");
-                }
-                else if (specimen.Status == "Shipped")
-                {
-                    InvalidBarcodes.Add($"{barcode} (already shipped)");
-                }
-                else if (specimen.DiscardApprovalID != null)
-                {
-                    InvalidBarcodes.Add($"{barcode} (discard already requested)");
-                }
-                else
-                {
-                    FoundSpecimens.Add(specimen);
+                    if (specimen.Status == "Discarded")
+                        InvalidBarcodes.Add($"{barcode} ({specimen.Study?.StudyCode}) — already discarded");
+                    else if (specimen.Status == "Shipped")
+                        InvalidBarcodes.Add($"{barcode} ({specimen.Study?.StudyCode}) — already shipped");
+                    else if (specimen.DiscardApprovalID != null)
+                        InvalidBarcodes.Add($"{barcode} ({specimen.Study?.StudyCode}) — discard already requested");
+                    else
+                        FoundSpecimens.Add(specimen);
                 }
             }
 
@@ -80,21 +76,23 @@ namespace STASIS.Pages.Samples
 
             var barcodeList = Barcodes
                 .Split(new[] { '\n', '\r', ',' }, StringSplitOptions.RemoveEmptyEntries)
-                .Select(b => b.Trim())
+                .Select(b => b.Trim().ToUpperInvariant())
                 .Where(b => !string.IsNullOrEmpty(b))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Distinct()
                 .ToList();
 
             var specimenIds = new List<int>();
             foreach (var barcode in barcodeList)
             {
-                var specimen = await _sampleService.GetSpecimenByBarcode(barcode);
-                if (specimen != null &&
-                    specimen.Status != "Discarded" &&
-                    specimen.Status != "Shipped" &&
-                    specimen.DiscardApprovalID == null)
+                var matches = await _sampleService.GetSpecimensByBarcode(barcode);
+                foreach (var specimen in matches)
                 {
-                    specimenIds.Add(specimen.SpecimenID);
+                    if (specimen.Status != "Discarded" &&
+                        specimen.Status != "Shipped" &&
+                        specimen.DiscardApprovalID == null)
+                    {
+                        specimenIds.Add(specimen.SpecimenID);
+                    }
                 }
             }
 

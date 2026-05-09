@@ -112,6 +112,15 @@
 
             var resp = await fetch('?handler=Lookup&barcode=' + encodeURIComponent(barcode));
             var data = await resp.json();
+            if (data.ambiguous) {
+                var btns = data.studies.map(function(s) {
+                    return '<button type="button" class="list-group-item list-group-item-action py-1" onclick="addBySpecimenId(' + s.specimenId + ',\'' + barcode + '\')">' + s.study + '</button>';
+                }).join('');
+                scanStatus.innerHTML = '<div class="text-warning mb-1">Multiple studies match this barcode. Pick one:</div><div class="list-group" style="max-width:300px;">' + btns + '</div>';
+                scanInput.value = '';
+                scanInput.focus();
+                return;
+            }
             if (!data.found) {
                 scanStatus.innerHTML = '<span class="text-danger">Not found: ' + barcode + '</span>';
                 scanInput.value = '';
@@ -130,6 +139,31 @@
             advancePosition();
             scanStatus.innerHTML = '<span class="text-success">Added: ' + data.barcodeId + '</span>';
             scanInput.value = '';
+            scanInput.focus();
+            renderTable();
+        }
+
+        async function addBySpecimenId(specimenId, barcode) {
+            var resp = await fetch('?handler=Lookup&barcode=' + encodeURIComponent(barcode) + '&specimenId=' + specimenId);
+            var data = await resp.json();
+            if (!data.found) {
+                scanStatus.innerHTML = '<span class="text-danger">Could not load specimen.</span>';
+                return;
+            }
+            if (scanned.some(function (s) { return s.SpecimenId === data.specimenId; })) {
+                scanStatus.innerHTML = '<span class="text-warning">Already scanned.</span>';
+                return;
+            }
+            scanned.push({
+                SpecimenId: data.specimenId,
+                BarcodeId: data.barcodeId,
+                SampleType: data.sampleType,
+                CurrentBox: data.currentBox,
+                Row: nextRow,
+                Col: nextCol
+            });
+            advancePosition();
+            scanStatus.innerHTML = '<span class="text-success">Added: ' + data.barcodeId + '</span>';
             scanInput.focus();
             renderTable();
         }

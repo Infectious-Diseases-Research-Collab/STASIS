@@ -47,8 +47,8 @@
                     <input name="ParticipantID" value="@Model.ParticipantID" class="form-control" placeholder="e.g. PRISM-004421" required />
                 </div>
                 <div class="col-md-6">
-                    <label class="form-label fw-semibold small">Study</label>
-                    <select name="StudyID" asp-items="Model.StudyOptions" class="form-select">
+                    <label class="form-label fw-semibold small">Study <span class="text-danger">*</span></label>
+                    <select name="StudyID" id="studySelect" asp-items="Model.StudyOptions" class="form-select" required>
                         <option value="">— Select Study —</option>
                     </select>
                 </div>
@@ -382,13 +382,14 @@
                 return;
             }
 
-            // Check database
+            // Check database (scoped to selected study)
             try {
-                const resp = await fetch(`?handler=CheckBarcode&barcode=${encodeURIComponent(val)}`);
+                const studyId = document.getElementById('studySelect')?.value || '';
+                const resp = await fetch(`?handler=CheckBarcode&barcode=${encodeURIComponent(val)}&studyId=${encodeURIComponent(studyId)}`);
                 if (!resp.ok) throw new Error();
                 const data = await resp.json();
                 if (data.taken) {
-                    setBarcodeStatus(input, 'error', 'This barcode is already in use.');
+                    setBarcodeStatus(input, 'error', 'This barcode is already in use in this study.');
                 } else {
                     setBarcodeStatus(input, 'ok', '✓ Available');
                 }
@@ -398,9 +399,24 @@
         }
 
         let barcodeTimers = {};
+
+        // Re-validate all barcodes when the study changes (uniqueness is per study)
+        document.getElementById('studySelect')?.addEventListener('change', function () {
+            document.querySelectorAll('.barcode-input').forEach(input => {
+                if (input.value.trim()) {
+                    clearTimeout(barcodeTimers[input.name]);
+                    barcodeTimers[input.name] = setTimeout(() => validateBarcode(input), 100);
+                }
+            });
+        });
         document.addEventListener('input', function (e) {
             if (!e.target.classList.contains('barcode-input')) return;
             const input = e.target;
+
+            // Force uppercase as the user types, preserving cursor position
+            const pos = input.selectionStart;
+            input.value = input.value.toUpperCase();
+            input.setSelectionRange(pos, pos);
             clearTimeout(barcodeTimers[input.name]);
             const val = input.value.trim();
 
