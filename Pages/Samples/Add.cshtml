@@ -278,6 +278,7 @@
 
         // ── Sample type conditional fields ──────────────────────────────────────
         function updateConditional(select) {
+            select.classList.remove('is-invalid');
             const card = select.closest('.sample-card');
             const wrapper = card.querySelector('.conditional-wrapper');
             const typeName = typeNames[select.value] || '';
@@ -429,6 +430,26 @@
         }
 
         function addCard() {
+            // Block adding a new card if the previous card is incomplete
+            const existingCards = document.querySelectorAll('.sample-card');
+            const lastCard = existingCards[existingCards.length - 1];
+            const lastBarcode = lastCard.querySelector('.barcode-input');
+            const lastType   = lastCard.querySelector('.type-select');
+            let hasError = false;
+
+            if (!lastBarcode.value.trim()) {
+                setBarcodeStatus(lastBarcode, 'error', 'Required before adding another sample.');
+                hasError = true;
+            }
+            if (!lastType.value) {
+                lastType.classList.add('is-invalid');
+                hasError = true;
+            }
+            if (hasError) {
+                lastCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                return;
+            }
+
             const idx = cardIndex++;
             const box = document.getElementById('sampleContainer');
 

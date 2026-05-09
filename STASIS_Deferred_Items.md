@@ -1,6 +1,6 @@
 # STASIS Deferred & Pending Items
 
-**Last Updated:** March 12, 2026
+**Last Updated:** May 8, 2026
 **Purpose:** Track all items across all phases that were partially implemented or deferred. Use this as a checklist when returning to unfinished work.
 
 ---
@@ -58,6 +58,16 @@ These items have groundwork in place but need additional work to be fully functi
 - **What exists:** `SampleService.GetOccupiedPositions` filters `WHERE PositionCol != null`, silently omitting all Filter Paper Binder specimens (col is always null).
 - **Impact:** The handler `OnGetOccupiedPositionsAsync` is currently unused by the Add page JS, so no runtime failure today. Any future caller relying on it for FP Binder boxes will receive an empty set.
 - **Fix:** Remove the `PositionCol != null` predicate and change the return type to `List<(int Row, int? Col)>`.
+
+### 9. Study-scoped Visit Types and Boxes (Add Sample page)
+
+- **What exists:** `VisitType` and `Box` have no `StudyID` column. All visit types and all boxes appear in the Add Sample dropdowns regardless of which study is selected.
+- **What's missing:** When a study is selected, the Visit Type and Box dropdowns should be filtered to only show options relevant to that study.
+- **Agreed approach:** Schema change (Option A) — add a `StudyID` FK to `tbl_VisitTypes` and `tbl_Boxes`, configure the association in Lab Setup, then filter dynamically on the Add Sample page via a AJAX call when study changes.
+- **Open questions before implementing:**
+  - Does a visit type belong to one study only, or can the same visit type (e.g. "Baseline") be shared across multiple studies?
+  - Does a box belong to one study only, or can a box hold specimens from different studies?
+- **Where to implement:** EF migration to add `StudyID` FK to both tables, update `LabSetup/VisitTypes` and `LabSetup/Freezers`/Boxes pages to associate records with studies, add `OnGetVisitTypesByStudy` and `OnGetBoxesByStudy` AJAX handlers to `Add.cshtml.cs`, update `Add.cshtml` JS to re-filter dropdowns on study change.
 
 ---
 
