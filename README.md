@@ -25,42 +25,51 @@ dotnet --info
 psql --version
 ```
 
+**Windows note:** the PostgreSQL installer usually adds `psql` to your `PATH` automatically, but this requires a fresh terminal (close and reopen CMD/PowerShell/VS Code after installing). If `psql --version` returns "not recognized as an internal or external command," add the PostgreSQL `bin` folder to your `PATH` manually — typically `C:\Program Files\PostgreSQL\17\bin` — then open a new terminal and try again. Also make sure the PostgreSQL service is running (Windows installs it as a service named `postgresql-x64-17` and starts it automatically; check **Services** if `psql` can't connect).
+
 ### 2. Create the PostgreSQL database and apply migrations
 
 Follow these steps to initialize the local development database. All SQL scripts are in the `Database/` directory, so `cd Database` first (or prefix each file path with `Database/`).
+
+#### Before you start: set the `stasis_app` password
+
+`Database/00_STASIS_create_db_user.sql` creates the `stasis_app` role with the literal password `your_password_here`. This is **not** a placeholder comment — if you run the script as-is, that string becomes your actual local database password. Before running the Quick Setup script or the Manual Setup steps below, open `Database/00_STASIS_create_db_user.sql` and replace `your_password_here` with a password of your choosing. Keep note of it — you'll need it again in step 3 when you configure the connection string.
 
 #### Quick Setup (macOS)
 
 On macOS the default PostgreSQL superuser is typically your OS login. The automation script uses `$(whoami)` for this:
 
-1. **Make the script executable**:
+1. **Edit `Database/00_STASIS_create_db_user.sql`** and replace `your_password_here` with your chosen password (see above).
+2. **Make the script executable**:
    ```bash
    chmod +x Database/setup_db.sh
    ```
-2. **Run the script** from the repository root:
+3. **Run the script** from the repository root:
    ```bash
    ./Database/setup_db.sh
    ```
 
 #### Manual Setup (Windows CMD / PowerShell / macOS)
 
-On Windows the default PostgreSQL superuser is `postgres`. On macOS you can substitute your OS username or `postgres` if you configured it that way.
+On Windows the default PostgreSQL superuser is `postgres`. On macOS you can substitute your OS username or `postgres` if you configured it that way. Run these from the repository root, in a CMD, PowerShell, or Git Bash terminal.
 
-1. **Create the Role**:
+1. **Create the Role** (after editing `00_STASIS_create_db_user.sql` to set your password, per above):
    ```bash
    psql -U postgres -f Database/00_STASIS_create_db_user.sql
    ```
+   On Windows, `psql` will prompt for the `postgres` superuser password — this is the password you set when installing PostgreSQL, not the `stasis_app` password from step 1.
 
 2. **Create the Database**:
    ```bash
    psql -U postgres -c "CREATE DATABASE stasis OWNER stasis_app;"
    ```
-   *If the database already exists you can ignore the error.*
+   *If the database already exists you can ignore the error.* This will prompt for the `postgres` superuser password again.
 
 3. **Initialize Schema**:
    ```bash
    psql -U stasis_app -d stasis -f Database/01_STASIS_create_tables_postgres.sql
    ```
+   This prompts for the `stasis_app` password — the one you set in `Database/00_STASIS_create_db_user.sql`.
 
 #### Configuration Details
 * **Default Superuser**: `postgres` (Windows) or your OS login (macOS)
@@ -111,6 +120,8 @@ dotnet user-secrets set "ConnectionStrings:DefaultConnection" "Host=localhost;Po
 dotnet user-secrets set "AdminSeedPassword" "YOUR_ADMIN_PASSWORD"
 ```
 
+Replace `YOUR_POSTGRES_PASSWORD` with the password you set in `Database/00_STASIS_create_db_user.sql` (step 2) — not the literal string `your_password_here`.
+
 On first startup the app automatically creates three roles (`Admin`, `Write`, `Read`) and seeds a bootstrap admin account (`admin@stasis.com`) using `AdminSeedPassword`. This account is intended for initial setup only — use it to log in, create a personal admin account for each team member via **Administration → Users**, then delete or disable the shared seed account.
 
 Choose a strong `AdminSeedPassword` and store it somewhere safe — you cannot recover it from the app later. The app logs a warning at startup and skips seeding if this value is not set.
@@ -143,6 +154,14 @@ dotnet watch run --project STASIS.csproj
 ```
 
 If `net10.0` does not build on your machine, update `STASIS.csproj` to a supported target framework such as `net9.0`.
+
+**First run on Windows (or any machine that hasn't used `dotnet` HTTPS before):** if your browser shows a certificate warning or refuses to load `https://localhost:5001`, trust the local ASP.NET Core dev certificate once:
+
+```bash
+dotnet dev-certs https --trust
+```
+
+On Windows this pops a confirmation dialog to add the certificate to your trusted root store — accept it, then restart the app.
 
 ## 6. Developer Smoke Test Checklist
 
