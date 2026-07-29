@@ -49,6 +49,11 @@ On macOS the default PostgreSQL superuser is typically your OS login. The automa
    ./Database/setup_db.sh
    ```
 
+   By default the script does not insert fake data. To include it, uncomment the last line in `Database/setup_db.sh` before running it, or run it separately afterward:
+   ```bash
+   psql -U stasis_app -d stasis -f Database/02_STASIS_insert_fake_data.sql
+   ```
+
 #### Manual Setup (Windows CMD / PowerShell / macOS)
 
 On Windows the default PostgreSQL superuser is `postgres`. On macOS you can substitute your OS username or `postgres` if you configured it that way. Run these from the repository root, in a CMD, PowerShell, or Git Bash terminal.
@@ -70,6 +75,12 @@ On Windows the default PostgreSQL superuser is `postgres`. On macOS you can subs
    psql -U stasis_app -d stasis -f Database/01_STASIS_create_tables_postgres.sql
    ```
    This prompts for the `stasis_app` password — the one you set in `Database/00_STASIS_create_db_user.sql`.
+
+4. **(Optional) Insert fake data**: seeds the Identity roles (`Admin`, `Write`, `Read`), sample studies, visit types, sample types, freezers, and other reference/test data — useful if you want a populated database to develop against instead of an empty one:
+   ```bash
+   psql -U stasis_app -d stasis -f Database/02_STASIS_insert_fake_data.sql
+   ```
+   This also prompts for the `stasis_app` password. Skip this step if you plan to import real data instead (e.g. via a `pg_dump` file) — running it against a database that already has data can fail on conflicting rows.
 
 #### Configuration Details
 * **Default Superuser**: `postgres` (Windows) or your OS login (macOS)
