@@ -139,7 +139,13 @@ Keep `appsettings.Development.json` free of passwords and other secrets. The app
 Open the repository in your preferred tool:
 
 - Visual Studio: open `STASIS.sln`
-- VS Code: install `ms-dotnettools.csdevkit`, then run `code .`
+- VS Code: install the **C# Dev Kit** extension (published by Microsoft, extension ID `ms-dotnettools.csdevkit`), then run `code .` from the repository root
+
+  Install it either from the command line:
+  ```bash
+  code --install-extension ms-dotnettools.csdevkit
+  ```
+  or via the Extensions view in VS Code (`Ctrl+Shift+X`), searching for "C# Dev Kit" rather than the extension ID. This also installs the base **C#** extension and IntelliCode as dependencies. The first time you use it, VS Code will prompt you to sign in with a Microsoft or GitHub account (free for individual use).
 
 If you use VS Code, the C# Dev Kit walkthrough can detect the installed .NET SDK and configure launch settings.
 
