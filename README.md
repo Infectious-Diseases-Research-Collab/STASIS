@@ -108,7 +108,9 @@ psql -U stasis_app -d stasis -c "
     CONSTRAINT \"PK___EFMigrationsHistory\" PRIMARY KEY (\"MigrationId\")
   );
   INSERT INTO \"__EFMigrationsHistory\" (\"MigrationId\", \"ProductVersion\")
-  VALUES ('20260303031801_InitialCreate', '10.0.1')
+  VALUES
+    ('20260408121640_InitialCreate', '10.0.1'),
+    ('20260410093423_AddVisitTypes', '10.0.1')
   ON CONFLICT DO NOTHING;
 "
 ```
@@ -120,6 +122,8 @@ psql -U stasis_app -d stasis -f Database/mark_initial_migration.sql
 ```
 
 This file is already included in the repository at `Database/mark_initial_migration.sql`.
+
+**Keeping this in sync:** the `MigrationId` values above must exactly match the migration file names in `Migrations/` (e.g. `Migrations/20260408121640_InitialCreate.cs`). If a new migration is added to the project later, this script (and the inline SQL above) must be updated to include it too — otherwise `dotnet ef database update` will think the new migration (and anything after it) was never applied, and will try to re-run it against a database that already has those changes from the bootstrap script, causing errors or dropped tables.
 
 
 ### 3. Configure the application
