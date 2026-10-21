@@ -150,6 +150,39 @@ public class StudyCreationTests : IClassFixture<TestWebApplicationFactory>, IAsy
     }
 
     [Fact]
+    public async Task OnPostAddAsync_FirstStudyAdminUserIdDoesNotExist_RejectsCleanlyWithoutCreatingStudy()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var services = scope.ServiceProvider;
+        var userManager = services.GetRequiredService<UserManager<IdentityUser>>();
+        var roleManager = services.GetRequiredService<RoleManager<IdentityRole>>();
+        var context = services.GetRequiredService<StasisDbContext>();
+
+        await roleManager.CreateAsync(new IdentityRole("Admin"));
+        var sysAdmin = new IdentityUser { UserName = "sysadmin-studies3@test.com", Email = "sysadmin-studies3@test.com" };
+        await userManager.CreateAsync(sysAdmin);
+        await userManager.AddToRoleAsync(sysAdmin, "Admin");
+
+        var model = BuildPageModel(services, sysAdmin.Id);
+        model.Input = new StudiesModel.StudyInput
+        {
+            StudyCode = "STUDY-FORGEDADMIN",
+            // Simulates a direct POST with an ID that was never in the dropdown -- forged, or
+            // for a user deleted between page render and submit.
+            FirstStudyAdminUserId = Guid.NewGuid().ToString()
+        };
+
+        var result = await model.OnPostAddAsync();
+
+        // Rejected cleanly: PageResult with a ModelState error, no unhandled exception, and
+        // critically no headless Study row left behind with zero Study Admins.
+        Assert.IsType<PageResult>(result);
+        Assert.False(model.ModelState.IsValid);
+        Assert.False(await context.Studies.AsNoTracking().AnyAsync(s => s.StudyCode == "STUDY-FORGEDADMIN"));
+        Assert.False(await context.UserStudyAccesses.AsNoTracking().AnyAsync());
+    }
+
+    [Fact]
     public void StudiesModel_IsRestrictedToSystemAdmins_ViaAuthorizeRolesAttribute()
     {
         // This page has no per-handler authorization check of its own (unlike

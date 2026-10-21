@@ -78,6 +78,18 @@ namespace STASIS.Pages.LabSetup
             {
                 ModelState.AddModelError("Input.FirstStudyAdminUserId", "Select the study's first Study Admin.");
             }
+            // IDOR/staleness guard, mirroring CreateUser.cshtml.cs's server-side re-validation of
+            // Input.StudyID: re-check that the posted user actually exists before the Study is
+            // committed. Without this, a forged or stale ID (not in the dropdown, or a user
+            // deleted between page render and submit) would let the Study row commit via the
+            // SaveChangesAsync below, then throw an unhandled DbUpdateException out of
+            // GrantAccessAsync's own save (AspNetUserId has a real FK constraint) -- leaving a
+            // headless Study with zero Study Admins and a 500 for the caller instead of a clean
+            // rejection.
+            else if (await _userManager.FindByIdAsync(Input.FirstStudyAdminUserId) == null)
+            {
+                ModelState.AddModelError("Input.FirstStudyAdminUserId", "Select a valid first Study Admin.");
+            }
 
             if (!ModelState.IsValid)
             {
