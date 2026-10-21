@@ -379,12 +379,17 @@ namespace STASIS.Migrations
                     b.Property<int?>("RackID")
                         .HasColumnType("integer");
 
+                    b.Property<int?>("StudyID")
+                        .HasColumnType("integer");
+
                     b.HasKey("BoxID");
 
                     b.HasIndex("BoxLabel")
                         .IsUnique();
 
                     b.HasIndex("RackID");
+
+                    b.HasIndex("StudyID");
 
                     b.ToTable("tbl_Boxes", null, t =>
                         {
@@ -1047,7 +1052,14 @@ namespace STASIS.Migrations
                         .WithMany("Boxes")
                         .HasForeignKey("RackID");
 
+                    b.HasOne("STASIS.Models.Study", "Study")
+                        .WithMany()
+                        .HasForeignKey("StudyID")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.Navigation("Rack");
+
+                    b.Navigation("Study");
                 });
 
             modelBuilder.Entity("STASIS.Models.Compartment", b =>

@@ -10,6 +10,8 @@ public class Box
     public string BoxCategory { get; set; } = "Standard";
     public int? RackID { get; set; }
     public Rack? Rack { get; set; }
+    public int? StudyID { get; set; }
+    public Study? Study { get; set; }
     public virtual ICollection<Specimen> Specimens { get; set; } = new List<Specimen>();
     public ICollection<Shipment> Shipments { get; set; } = new List<Shipment>();
 }

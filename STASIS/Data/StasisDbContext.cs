@@ -92,6 +92,12 @@ public class StasisDbContext : IdentityDbContext
                 "CK_Boxes_BoxCategory",
                 "\"BoxCategory\" IN ('Standard', 'Temp', 'Trash', 'Shipping')"));
 
+        modelBuilder.Entity<Box>()
+            .HasOne(b => b.Study)
+            .WithMany()
+            .HasForeignKey(b => b.StudyID)
+            .OnDelete(DeleteBehavior.Restrict);
+
         modelBuilder.Entity<Study>()
             .HasIndex(s => s.StudyCode)
             .IsUnique();
