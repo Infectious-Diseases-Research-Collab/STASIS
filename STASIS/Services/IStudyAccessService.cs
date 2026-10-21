@@ -30,4 +30,24 @@ public interface IStudyAccessService
     // (e.g. Administration/CreateUser) build a study picker without calling StasisDbContext
     // directly, per this codebase's "services only" data-access rule.
     Task<List<Study>> GetManageableStudiesAsync(string userId);
+
+    // Number of UserStudyAccess rows with Role == "StudyAdmin" for the given study. Lets page
+    // models (e.g. Administration/EditUser) enforce the "a study must have at least one Study
+    // Admin" guardrail before revoking/demoting a Study Admin, without calling StasisDbContext
+    // directly.
+    Task<int> CountStudyAdminsAsync(int studyId);
+
+    // Revokes a user's access to a study by deleting their UserStudyAccess row. A no-op if the
+    // user had no access row for that study. Callers are responsible for authorizing the revoke
+    // (e.g. CanManageStudyAsync) and for enforcing the "at least one Study Admin" guardrail
+    // before calling this. Also writes the "tbl_UserStudyAccess" audit log entry itself, mirroring
+    // GrantAccessAsync, using the deleted row's own UserStudyAccessID as RecordID.
+    Task RevokeAccessAsync(string userId, int studyId, string revokedByUserId);
+
+    // Changes a user's role on a study by updating their existing UserStudyAccess row. A no-op if
+    // the user had no access row for that study. Callers are responsible for authorizing the
+    // change (e.g. CanManageStudyAsync) and for enforcing the "at least one Study Admin" guardrail
+    // before calling this. Also writes the "tbl_UserStudyAccess" audit log entry itself, mirroring
+    // GrantAccessAsync, using the row's own UserStudyAccessID as RecordID.
+    Task ChangeRoleAsync(string userId, int studyId, string newRole, string changedByUserId);
 }

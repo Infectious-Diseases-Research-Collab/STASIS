@@ -6,62 +6,156 @@
 
 <h1>@ViewData["Title"]</h1>
 
+@if (TempData["Success"] != null)
+{
+    <div class="alert alert-success alert-dismissible fade show">@TempData["Success"]<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
+}
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-danger alert-dismissible fade show">@TempData["Error"]<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
+}
+
 <div class="row">
     <div class="col-md-6">
-        <form method="post">
-            <div asp-validation-summary="All" class="text-danger"></div>
-            
-            <input type="hidden" asp-for="Input.UserId" />
-            
-            <div class="form-group mb-3">
-                <label asp-for="Input.Email" class="form-label"></label>
-                <input asp-for="Input.Email" class="form-control" readonly />
-            </div>
+        @if (Model.CallerIsSystemAdmin)
+        {
+            <form method="post">
+                <div asp-validation-summary="All" class="text-danger"></div>
 
-            <div class="form-group mb-3">
-                <label asp-for="Input.Department" class="form-label">Department</label>
-                <input asp-for="Input.Department" class="form-control" />
-                <span asp-validation-for="Input.Department" class="text-danger"></span>
-            </div>
+                <input type="hidden" asp-for="Input.UserId" />
 
-            <div class="form-group mb-3">
-                <label asp-for="Input.Role" class="form-label">Role</label>
-                <select asp-for="Input.Role" asp-items="Model.Roles" class="form-select">
-                    <option value="">Select a Role</option>
-                </select>
-                <span asp-validation-for="Input.Role" class="text-danger"></span>
-            </div>
+                <div class="form-group mb-3">
+                    <label asp-for="Input.Email" class="form-label"></label>
+                    <input asp-for="Input.Email" class="form-control" readonly />
+                </div>
 
-            <div class="form-check mb-3">
-                <input class="form-check-input" type="checkbox" asp-for="Input.CanApproveShipments">
-                <label class="form-check-label" asp-for="Input.CanApproveShipments">
-                    Can Approve Shipments
-                </label>
-            </div>
+                <div class="form-group mb-3">
+                    <label asp-for="Input.Department" class="form-label">Department</label>
+                    <input asp-for="Input.Department" class="form-control" />
+                    <span asp-validation-for="Input.Department" class="text-danger"></span>
+                </div>
 
-            <div class="form-check mb-3">
-                <input class="form-check-input" type="checkbox" asp-for="Input.CanApproveDiscards">
-                <label class="form-check-label" asp-for="Input.CanApproveDiscards">
-                    Can Approve Discards
-                </label>
-            </div>
+                <div class="form-check mb-3">
+                    <input class="form-check-input" type="checkbox" asp-for="Input.CanApproveShipments">
+                    <label class="form-check-label" asp-for="Input.CanApproveShipments">
+                        Can Approve Shipments
+                    </label>
+                </div>
 
-            <button type="submit" class="btn btn-primary">Save Changes</button>
-            <a asp-page="./Users" class="btn btn-secondary">Cancel</a>
-        </form>
-        
-        <hr />
-        
-        <form method="post" asp-page-handler="ResetPassword" class="mt-4">
-            <input type="hidden" name="id" value="@Model.Input.UserId" />
-            <h4>Reset Password</h4>
-            <div class="form-group mb-3">
-                <label name="newPassword" class="form-label">New Temporary Password</label>
-                <input name="newPassword" class="form-control" type="password" required />
-            </div>
-            <button type="submit" class="btn btn-warning">Reset Password</button>
-        </form>
+                <div class="form-check mb-3">
+                    <input class="form-check-input" type="checkbox" asp-for="Input.CanApproveDiscards">
+                    <label class="form-check-label" asp-for="Input.CanApproveDiscards">
+                        Can Approve Discards
+                    </label>
+                </div>
+
+                <button type="submit" class="btn btn-primary">Save Changes</button>
+                <a asp-page="./Users" class="btn btn-secondary">Cancel</a>
+            </form>
+
+            <hr />
+
+            <form method="post" asp-page-handler="ResetPassword" class="mt-4">
+                <input type="hidden" name="id" value="@Model.Input.UserId" />
+                <h4>Reset Password</h4>
+                <div class="form-group mb-3">
+                    <label name="newPassword" class="form-label">New Temporary Password</label>
+                    <input name="newPassword" class="form-control" type="password" required />
+                </div>
+                <button type="submit" class="btn btn-warning">Reset Password</button>
+            </form>
+
+            <hr />
+        }
+        else
+        {
+            <p>@Model.Input.Email</p>
+        }
     </div>
+</div>
+
+<h4 class="mt-4">Study Access</h4>
+
+<div class="table-responsive">
+    <table class="table table-striped table-hover">
+        <thead>
+            <tr>
+                <th>Study</th>
+                <th>Role</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @if (Model.AccessRows.Count == 0)
+            {
+                <tr>
+                    <td colspan="3" class="text-muted">No study access.</td>
+                </tr>
+            }
+            @foreach (var row in Model.AccessRows)
+            {
+                <tr>
+                    <td>@row.StudyCode</td>
+                    <td>@row.Role</td>
+                    <td>
+                        @if (row.CallerCanManage)
+                        {
+                            <form method="post" asp-page-handler="ChangeRole" class="d-inline-flex align-items-center gap-2 me-2">
+                                <input type="hidden" name="userId" value="@Model.Input.UserId" />
+                                <input type="hidden" name="studyId" value="@row.StudyID" />
+                                <select name="newRole" class="form-select form-select-sm" style="width: auto;">
+                                    @foreach (var roleOption in STASIS.Pages.Administration.EditUserModel.StudyRoleOptions)
+                                    {
+                                        if (roleOption == row.Role)
+                                        {
+                                            <option value="@roleOption" selected="selected">@roleOption</option>
+                                        }
+                                        else
+                                        {
+                                            <option value="@roleOption">@roleOption</option>
+                                        }
+                                    }
+                                </select>
+                                <button type="submit" class="btn btn-sm btn-outline-primary">Update Role</button>
+                            </form>
+
+                            <form method="post" asp-page-handler="RevokeAccess" class="d-inline"
+                                  onsubmit="return confirm('Revoke access to @row.StudyCode for this user?');">
+                                <input type="hidden" name="userId" value="@Model.Input.UserId" />
+                                <input type="hidden" name="studyId" value="@row.StudyID" />
+                                <button type="submit" class="btn btn-sm btn-outline-danger">Revoke</button>
+                            </form>
+                        }
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+<h4 class="mt-4">Grant New Access</h4>
+
+<form method="post" asp-page-handler="GrantAccess" class="row g-2 align-items-end">
+    <input type="hidden" name="userId" value="@Model.Input.UserId" />
+    <div class="col-auto">
+        <label class="form-label">Study</label>
+        <select name="studyId" asp-items="Model.GrantableStudies" class="form-select">
+            <option value="">Select a study</option>
+        </select>
+    </div>
+    <div class="col-auto">
+        <label class="form-label">Role</label>
+        <select name="role" asp-items="Model.StudyRoles" class="form-select">
+            <option value="">Select a role</option>
+        </select>
+    </div>
+    <div class="col-auto">
+        <button type="submit" class="btn btn-primary">Grant Access</button>
+    </div>
+</form>
+
+<div class="mt-4">
+    <a asp-page="./Users" class="btn btn-secondary">Back to Users</a>
 </div>
 
 @section Scripts {

@@ -138,6 +138,57 @@ public class StudyAccessService : IStudyAccessService
             .ToListAsync();
     }
 
+    public async Task<int> CountStudyAdminsAsync(int studyId)
+    {
+        return await _context.UserStudyAccesses
+            .AsNoTracking()
+            .CountAsync(a => a.StudyID == studyId && a.Role == "StudyAdmin");
+    }
+
+    public async Task RevokeAccessAsync(string userId, int studyId, string revokedByUserId)
+    {
+        var access = await _context.UserStudyAccesses
+            .FirstOrDefaultAsync(a => a.AspNetUserId == userId && a.StudyID == studyId);
+
+        if (access == null)
+        {
+            return;
+        }
+
+        var oldRole = access.Role;
+        var recordId = access.UserStudyAccessID;
+
+        _context.UserStudyAccesses.Remove(access);
+        await _context.SaveChangesAsync();
+
+        // Logged here (rather than by the caller), mirroring GrantAccessAsync, so RecordID is
+        // always the deleted row's own int UserStudyAccessID rather than userId (a GUID string
+        // AuditService.LogChangeAsync can't parse).
+        await _auditService.LogChangeAsync("tbl_UserStudyAccess", recordId.ToString(),
+            "Revoked", oldRole, null, revokedByUserId);
+    }
+
+    public async Task ChangeRoleAsync(string userId, int studyId, string newRole, string changedByUserId)
+    {
+        var access = await _context.UserStudyAccesses
+            .FirstOrDefaultAsync(a => a.AspNetUserId == userId && a.StudyID == studyId);
+
+        if (access == null)
+        {
+            return;
+        }
+
+        var oldRole = access.Role;
+        access.Role = newRole;
+        await _context.SaveChangesAsync();
+
+        // Logged here (rather than by the caller), mirroring GrantAccessAsync, so RecordID is
+        // always this row's own int UserStudyAccessID rather than userId (a GUID string
+        // AuditService.LogChangeAsync can't parse).
+        await _auditService.LogChangeAsync("tbl_UserStudyAccess", access.UserStudyAccessID.ToString(),
+            "RoleChanged", oldRole, newRole, changedByUserId);
+    }
+
     private static StudyRole MapRole(string? role) => role switch
     {
         "Viewer" => StudyRole.Viewer,
