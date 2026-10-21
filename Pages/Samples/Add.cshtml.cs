@@ -271,7 +271,10 @@ namespace STASIS.Pages.Samples
             SampleTypes = await _sampleService.GetAllSampleTypes();
             SampleTypeOptions = new SelectList(SampleTypes, "SampleTypeID", "TypeName");
 
-            var allBoxes = await _storageService.GetAllBoxesAsync();
+            // Study-scoped filtering of the Box dropdown is deferred to the same later work as
+            // the Study dropdown above -- see STASIS_Deferred_Items.md item 9. Passing null here
+            // is the intentional, explicit "unfiltered for now" call, not an accidental default.
+            var allBoxes = await _storageService.GetAllBoxesAsync(null);
             AllBoxes = allBoxes.Select(b => new BoxOption(
                 b.BoxID,
                 b.Rack != null

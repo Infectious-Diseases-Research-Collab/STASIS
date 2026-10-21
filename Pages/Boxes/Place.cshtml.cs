@@ -35,7 +35,11 @@ namespace STASIS.Pages.Boxes
         {
             if (!string.IsNullOrEmpty(BoxLabel))
             {
-                FoundBox = await _storageService.GetBoxByLabelAsync(BoxLabel);
+                // Study-scoped filtering of the box placement workflow is out of scope for this
+                // task (box detail/placement write paths are a later task) -- see
+                // STASIS_Deferred_Items.md item 9. Passing null here is the intentional,
+                // explicit "unfiltered for now" call, not an accidental default.
+                FoundBox = await _storageService.GetBoxByLabelAsync(BoxLabel, null);
             }
             await LoadOptionsAsync();
         }
