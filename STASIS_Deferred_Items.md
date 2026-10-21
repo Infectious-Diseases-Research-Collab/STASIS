@@ -1,6 +1,6 @@
 # STASIS Deferred & Pending Items
 
-**Last Updated:** May 8, 2026
+**Last Updated:** October 21, 2026
 **Purpose:** Track all items across all phases that were partially implemented or deferred. Use this as a checklist when returning to unfinished work.
 
 ---
@@ -66,8 +66,19 @@ These items have groundwork in place but need additional work to be fully functi
 - **Agreed approach:** Schema change (Option A) — add a `StudyID` FK to `tbl_VisitTypes` and `tbl_Boxes`, configure the association in Lab Setup, then filter dynamically on the Add Sample page via a AJAX call when study changes.
 - **Open questions before implementing:**
   - Does a visit type belong to one study only, or can the same visit type (e.g. "Baseline") be shared across multiple studies?
-  - Does a box belong to one study only, or can a box hold specimens from different studies?
+  - ~~Does a box belong to one study only, or can a box hold specimens from different studies?~~ **Resolved (2026-10-21):** a box must belong to one study only — mixing is a bug, not intended behavior. Nothing in `StorageService`/`SampleService` currently enforces this. The `Box.StudyID` column being added for the study-access-control work (see `docs/superpowers/specs/2026-10-21-study-scoped-access-control-design.md`) covers this fix too — don't duplicate it.
 - **Where to implement:** EF migration to add `StudyID` FK to both tables, update `LabSetup/VisitTypes` and `LabSetup/Freezers`/Boxes pages to associate records with studies, add `OnGetVisitTypesByStudy` and `OnGetBoxesByStudy` AJAX handlers to `Add.cshtml.cs`, update `Add.cshtml` JS to re-filter dropdowns on study change.
+
+### 10. Filter Paper Binder box renders as a 9×9 grid on Boxes/Search, and never shows its specimens
+
+- **What exists:** `Boxes/Search.cshtml.cs GetGridSize()` returns 9 for `"81-slot"` and also for any unrecognized box type (the `_ => 9` default), which silently includes `"Filter Paper Binder"`. The real FP Binder layout is linear (100 slots, single column) per `SampleService.GetNextAvailablePosition`.
+- **Impact:** Worse than a wrong grid shape — `Search.cshtml`'s `specimenMap` is built from `box.Specimens.Where(s => s.PositionRow.HasValue && s.PositionCol.HasValue)`, but FP specimens always have `PositionCol == null` (linear placement). So no FP specimen ever appears in the grid view, regardless of grid shape.
+- **Where to implement:** `Pages/Boxes/Search.cshtml.cs GetGridSize()` — add an explicit `"Filter Paper Binder"` case (100 slots, 1 column, linear). `Pages/Boxes/Search.cshtml` — render FP Binder boxes as a single-column list keyed on `PositionRow` alone, not the `(row, col)` grid lookup.
+
+### 11. "View" button on Boxes/Search page not working
+
+- **Reported:** 2026-10-21, not yet diagnosed. Clicking "View" in the box results table (`Pages/Boxes/Search.cshtml`, the `asp-route-selectedBoxId` link) does not show the box detail/grid section.
+- **Where to look:** `Pages/Boxes/Search.cshtml` View link and `SearchModel.OnGetAsync` — static read-through didn't surface an obvious cause; needs to be reproduced and debugged directly (possibly related to item 10's FP Binder handling, possibly separate).
 
 ---
 
