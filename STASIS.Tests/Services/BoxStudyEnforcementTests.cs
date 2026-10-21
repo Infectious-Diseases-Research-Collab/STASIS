@@ -31,7 +31,7 @@ public class BoxStudyEnforcementTests
         return study;
     }
 
-    private static async Task<Box> AddBoxAsync(StasisDbContext context, string label, int? studyId, string category = "Standard")
+    private static async Task<Box> AddBoxAsync(StasisDbContext context, string label, int? studyId, string category)
     {
         var box = new Box { BoxLabel = label, BoxType = "81-slot", BoxCategory = category, StudyID = studyId };
         context.Boxes.Add(box);
@@ -39,7 +39,7 @@ public class BoxStudyEnforcementTests
         return box;
     }
 
-    private static async Task<Specimen> AddSpecimenAsync(StasisDbContext context, string barcode, int studyId, int? boxId, int? row = null, int? col = null)
+    private static async Task<Specimen> AddSpecimenAsync(StasisDbContext context, string barcode, int studyId, int? boxId, int? row, int? col)
     {
         var specimen = new Specimen
         {
@@ -61,7 +61,7 @@ public class BoxStudyEnforcementTests
     {
         var context = TestDbContextFactory.Create();
         var studyA = await AddStudyAsync(context, "VB-A");
-        var box = await AddBoxAsync(context, "VB-BOX-1", studyId: null);
+        var box = await AddBoxAsync(context, "VB-BOX-1", studyId: null, category: "Standard");
 
         var service = CreateService(context);
 
@@ -78,7 +78,7 @@ public class BoxStudyEnforcementTests
         var context = TestDbContextFactory.Create();
         var studyA = await AddStudyAsync(context, "VB-B1");
         var studyB = await AddStudyAsync(context, "VB-B2");
-        var box = await AddBoxAsync(context, "VB-BOX-2", studyId: studyA.StudyID);
+        var box = await AddBoxAsync(context, "VB-BOX-2", studyId: studyA.StudyID, category: "Standard");
 
         var service = CreateService(context);
 
@@ -94,7 +94,7 @@ public class BoxStudyEnforcementTests
     {
         var context = TestDbContextFactory.Create();
         var studyA = await AddStudyAsync(context, "VB-C");
-        var box = await AddBoxAsync(context, "VB-BOX-3", studyId: studyA.StudyID);
+        var box = await AddBoxAsync(context, "VB-BOX-3", studyId: studyA.StudyID, category: "Standard");
 
         var service = CreateService(context);
 
@@ -114,8 +114,8 @@ public class BoxStudyEnforcementTests
         var studyA = await AddStudyAsync(context, "MS-A");
         var studyB = await AddStudyAsync(context, "MS-B");
 
-        var sourceBox = await AddBoxAsync(context, "MS-SRC", studyId: studyB.StudyID);
-        var destBox = await AddBoxAsync(context, "MS-DEST", studyId: studyA.StudyID);
+        var sourceBox = await AddBoxAsync(context, "MS-SRC", studyId: studyB.StudyID, category: "Standard");
+        var destBox = await AddBoxAsync(context, "MS-DEST", studyId: studyA.StudyID, category: "Standard");
 
         // destBox already holds a Study A specimen.
         await AddSpecimenAsync(context, "MS-EXISTING", studyA.StudyID, destBox.BoxID, row: 1, col: 1);
@@ -139,8 +139,8 @@ public class BoxStudyEnforcementTests
         var context = TestDbContextFactory.Create();
         var studyA = await AddStudyAsync(context, "MS-C");
 
-        var sourceBox = await AddBoxAsync(context, "MS-SRC2", studyId: studyA.StudyID);
-        var destBox = await AddBoxAsync(context, "MS-DEST2", studyId: null);
+        var sourceBox = await AddBoxAsync(context, "MS-SRC2", studyId: studyA.StudyID, category: "Standard");
+        var destBox = await AddBoxAsync(context, "MS-DEST2", studyId: null, category: "Standard");
 
         var specimen = await AddSpecimenAsync(context, "MS-MOVING2", studyA.StudyID, sourceBox.BoxID, row: 1, col: 1);
 
@@ -166,8 +166,8 @@ public class BoxStudyEnforcementTests
         var studyA = await AddStudyAsync(context, "RB-A");
         var studyB = await AddStudyAsync(context, "RB-B");
 
-        var sourceBox = await AddBoxAsync(context, "RB-SRC", studyId: studyA.StudyID);
-        var destBox = await AddBoxAsync(context, "RB-DEST", studyId: studyB.StudyID);
+        var sourceBox = await AddBoxAsync(context, "RB-SRC", studyId: studyA.StudyID, category: "Standard");
+        var destBox = await AddBoxAsync(context, "RB-DEST", studyId: studyB.StudyID, category: "Standard");
 
         var specimen1 = await AddSpecimenAsync(context, "RB-S1", studyB.StudyID, sourceBox.BoxID, row: 1, col: 1);
         // specimen2 belongs to Study A -- mismatched against destBox's Study B.
@@ -201,8 +201,8 @@ public class BoxStudyEnforcementTests
         var context = TestDbContextFactory.Create();
         var studyA = await AddStudyAsync(context, "RB-C");
 
-        var sourceBox = await AddBoxAsync(context, "RB-SRC2", studyId: studyA.StudyID);
-        var destBox = await AddBoxAsync(context, "RB-DEST2", studyId: null);
+        var sourceBox = await AddBoxAsync(context, "RB-SRC2", studyId: studyA.StudyID, category: "Standard");
+        var destBox = await AddBoxAsync(context, "RB-DEST2", studyId: null, category: "Standard");
 
         var specimen1 = await AddSpecimenAsync(context, "RB-S3", studyA.StudyID, sourceBox.BoxID, row: 1, col: 1);
         var specimen2 = await AddSpecimenAsync(context, "RB-S4", studyA.StudyID, sourceBox.BoxID, row: 1, col: 2);
@@ -274,7 +274,7 @@ public class BoxStudyEnforcementTests
         var context = TestDbContextFactory.Create();
         var studyA = await AddStudyAsync(context, "CU-B");
 
-        var box = await AddBoxAsync(context, "CU-BOX-2", studyId: studyA.StudyID);
+        var box = await AddBoxAsync(context, "CU-BOX-2", studyId: studyA.StudyID, category: "Standard");
         await AddSpecimenAsync(context, "CU-S1", studyA.StudyID, box.BoxID, row: 1, col: 1);
 
         var service = CreateService(context);
