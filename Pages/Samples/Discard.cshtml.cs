@@ -45,15 +45,31 @@ namespace STASIS.Pages.Samples
                 .Distinct()
                 .ToList();
 
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
+
             foreach (var barcode in barcodeList)
             {
                 var matches = await _sampleService.GetSpecimensByBarcode(barcode);
-                if (matches.Count == 0)
+
+                // A specimen in a study the caller cannot even view must not be revealed to
+                // exist via this lookup -- filter it out before any of the below branches,
+                // same "CanViewAsync then treat as not found" guard as
+                // Pages/Samples/Detail.cshtml.cs.
+                var visibleMatches = new List<Specimen>();
+                foreach (var specimen in matches)
+                {
+                    if (await _studyAccessService.CanViewAsync(userId, specimen.StudyID))
+                    {
+                        visibleMatches.Add(specimen);
+                    }
+                }
+
+                if (visibleMatches.Count == 0)
                 {
                     NotFoundBarcodes.Add(barcode);
                     continue;
                 }
-                foreach (var specimen in matches)
+                foreach (var specimen in visibleMatches)
                 {
                     if (specimen.Status == "Discarded")
                         InvalidBarcodes.Add($"{barcode} ({specimen.Study?.StudyCode}) — already discarded");

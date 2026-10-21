@@ -83,12 +83,24 @@ namespace STASIS.Pages.Boxes
 
         public async Task<IActionResult> OnGetCompartmentsAsync(int freezerId)
         {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
+            if (!await IsEditorAnywhereAsync(userId))
+            {
+                return Forbid();
+            }
+
             var compartments = await _storageService.GetCompartmentsByFreezer(freezerId);
             return new JsonResult(compartments.Select(c => new { c.CompartmentID, c.CompartmentName }));
         }
 
         public async Task<IActionResult> OnGetRacksAsync(int compartmentId)
         {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
+            if (!await IsEditorAnywhereAsync(userId))
+            {
+                return Forbid();
+            }
+
             var racks = await _storageService.GetRacksByCompartment(compartmentId);
             return new JsonResult(racks.Select(r => new { r.RackID, r.RackName }));
         }

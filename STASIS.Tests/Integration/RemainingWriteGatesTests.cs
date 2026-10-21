@@ -566,4 +566,187 @@ public class RemainingWriteGatesTests : IClassFixture<TestWebApplicationFactory>
         var box = await context.Boxes.SingleOrDefaultAsync(b => b.BoxLabel == "RWG-C-CREATED");
         Assert.NotNull(box);
     }
+
+    // ---------------------------------------------------------------------
+    // Review follow-up: lookup/helper handlers must not leak existence of specimens in
+    // studies the caller cannot even view. These three mirror Pages/Samples/Detail.cshtml.cs's
+    // CanViewAsync-then-"not found" guard, applied to the lookup paths that lost their
+    // class-level [Authorize(Roles = "Write,Admin")] gate in this task.
+    // ---------------------------------------------------------------------
+
+    [Fact]
+    public async Task Discard_OnPostLookupAsync_SpecimenInStudyCallerCannotView_IsTreatedAsNotFound()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var services = scope.ServiceProvider;
+        var context = services.GetRequiredService<StasisDbContext>();
+
+        var sysAdmin = await CreateSystemAdminAsync(services, "sysadmin-rwg12@test.com");
+
+        var callerStudy = new Study { StudyCode = "RWG-D-LOOKUP-MINE" };
+        var otherStudy = new Study { StudyCode = "RWG-D-LOOKUP-OTHER" };
+        context.Studies.AddRange(callerStudy, otherStudy);
+        await context.SaveChangesAsync();
+
+        // Caller has zero access (not even Viewer) to otherStudy.
+        var caller = await CreateUserAsync(services, "viewer-rwg12@test.com");
+        await GrantAsync(context, caller.Id, callerStudy.StudyID, "Viewer", sysAdmin.Id);
+
+        await AddSpecimenAsync(context, "RWGD-HIDDEN1", otherStudy.StudyID, null, null, null);
+
+        var model = BuildDiscardModel(services, caller.Id);
+        model.Barcodes = "RWGD-HIDDEN1";
+
+        var result = await model.OnPostLookupAsync();
+
+        Assert.IsType<PageResult>(result);
+        Assert.Empty(model.FoundSpecimens);
+        Assert.Empty(model.InvalidBarcodes);
+        Assert.Contains("RWGD-HIDDEN1", model.NotFoundBarcodes);
+    }
+
+    [Fact]
+    public async Task Move_OnGetAsync_SpecimenInStudyCallerCannotView_IsTreatedAsNotFound()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var services = scope.ServiceProvider;
+        var context = services.GetRequiredService<StasisDbContext>();
+
+        var sysAdmin = await CreateSystemAdminAsync(services, "sysadmin-rwg13@test.com");
+
+        var callerStudy = new Study { StudyCode = "RWG-M-LOOKUP-MINE" };
+        var otherStudy = new Study { StudyCode = "RWG-M-LOOKUP-OTHER" };
+        context.Studies.AddRange(callerStudy, otherStudy);
+        await context.SaveChangesAsync();
+
+        var caller = await CreateUserAsync(services, "viewer-rwg13@test.com");
+        await GrantAsync(context, caller.Id, callerStudy.StudyID, "Viewer", sysAdmin.Id);
+
+        var hiddenSpecimen = await AddSpecimenAsync(context, "RWGM-HIDDEN1", otherStudy.StudyID, null, null, null);
+
+        var modelBySpecimenId = BuildMoveModel(services, caller.Id);
+        modelBySpecimenId.SpecimenId = hiddenSpecimen.SpecimenID;
+
+        await modelBySpecimenId.OnGetAsync();
+
+        Assert.Null(modelBySpecimenId.FoundSpecimen);
+
+        var modelByBarcode = BuildMoveModel(services, caller.Id);
+        modelByBarcode.Barcode = "RWGM-HIDDEN1";
+
+        await modelByBarcode.OnGetAsync();
+
+        Assert.Null(modelByBarcode.FoundSpecimen);
+        Assert.Empty(modelByBarcode.AmbiguousSpecimens);
+    }
+
+    [Fact]
+    public async Task Rebox_OnGetLookupAsync_SpecimenInStudyCallerCannotView_ReturnsFoundFalse()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var services = scope.ServiceProvider;
+        var context = services.GetRequiredService<StasisDbContext>();
+
+        var sysAdmin = await CreateSystemAdminAsync(services, "sysadmin-rwg14@test.com");
+
+        var callerStudy = new Study { StudyCode = "RWG-R-LOOKUP-MINE" };
+        var otherStudy = new Study { StudyCode = "RWG-R-LOOKUP-OTHER" };
+        context.Studies.AddRange(callerStudy, otherStudy);
+        await context.SaveChangesAsync();
+
+        var caller = await CreateUserAsync(services, "viewer-rwg14@test.com");
+        await GrantAsync(context, caller.Id, callerStudy.StudyID, "Viewer", sysAdmin.Id);
+
+        var hiddenSpecimen = await AddSpecimenAsync(context, "RWGR-HIDDEN1", otherStudy.StudyID, null, null, null);
+
+        var modelBySpecimenId = BuildReboxModel(services, caller.Id);
+        var resultBySpecimenId = await modelBySpecimenId.OnGetLookupAsync("RWGR-HIDDEN1", hiddenSpecimen.SpecimenID);
+
+        var jsonBySpecimenId = Assert.IsType<JsonResult>(resultBySpecimenId);
+        Assert.False((bool)jsonBySpecimenId.Value!.GetType().GetProperty("found")!.GetValue(jsonBySpecimenId.Value)!);
+
+        var modelByBarcode = BuildReboxModel(services, caller.Id);
+        var resultByBarcode = await modelByBarcode.OnGetLookupAsync("RWGR-HIDDEN1");
+
+        var jsonByBarcode = Assert.IsType<JsonResult>(resultByBarcode);
+        Assert.False((bool)jsonByBarcode.Value!.GetType().GetProperty("found")!.GetValue(jsonByBarcode.Value)!);
+    }
+
+    // ---------------------------------------------------------------------
+    // Review follow-up: cross-study box-mixing attempts must surface as a ModelState error,
+    // not an unhandled InvalidOperationException (same pattern Samples/Add already uses for
+    // this exact exception from ValidateAndAssignBoxStudyAsync).
+    // ---------------------------------------------------------------------
+
+    [Fact]
+    public async Task Move_OnPostMoveAsync_DestinationBoxHeldByDifferentStudy_AddsModelStateError_DoesNotThrow()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var services = scope.ServiceProvider;
+        var context = services.GetRequiredService<StasisDbContext>();
+
+        var sysAdmin = await CreateSystemAdminAsync(services, "sysadmin-rwg15@test.com");
+
+        var callerStudy = new Study { StudyCode = "RWG-M-MIX-MINE" };
+        var otherStudy = new Study { StudyCode = "RWG-M-MIX-OTHER" };
+        context.Studies.AddRange(callerStudy, otherStudy);
+        await context.SaveChangesAsync();
+
+        var caller = await CreateUserAsync(services, "editor-rwg15@test.com");
+        await GrantAsync(context, caller.Id, callerStudy.StudyID, "Editor", sysAdmin.Id);
+
+        // Destination box already belongs to otherStudy.
+        var destBox = await AddBoxAsync(context, "RWG-M-MIX-BOX1", otherStudy.StudyID);
+        var specimen = await AddSpecimenAsync(context, "RWGM-MIX1", callerStudy.StudyID, null, null, null);
+
+        var model = BuildMoveModel(services, caller.Id);
+        model.SpecimenId = specimen.SpecimenID;
+        model.NewBoxId = destBox.BoxID;
+        model.NewRow = 1;
+        model.NewCol = 1;
+
+        var result = await model.OnPostMoveAsync();
+
+        Assert.IsType<PageResult>(result);
+        Assert.False(model.ModelState.IsValid);
+
+        var reloaded = await context.Specimens.AsNoTracking().SingleAsync(s => s.SpecimenID == specimen.SpecimenID);
+        Assert.Null(reloaded.BoxID);
+    }
+
+    [Fact]
+    public async Task Rebox_OnPostCommitAsync_DestinationBoxHeldByDifferentStudy_AddsModelStateError_DoesNotThrow()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var services = scope.ServiceProvider;
+        var context = services.GetRequiredService<StasisDbContext>();
+
+        var sysAdmin = await CreateSystemAdminAsync(services, "sysadmin-rwg16@test.com");
+
+        var callerStudy = new Study { StudyCode = "RWG-R-MIX-MINE" };
+        var otherStudy = new Study { StudyCode = "RWG-R-MIX-OTHER" };
+        context.Studies.AddRange(callerStudy, otherStudy);
+        await context.SaveChangesAsync();
+
+        var caller = await CreateUserAsync(services, "editor-rwg16@test.com");
+        await GrantAsync(context, caller.Id, callerStudy.StudyID, "Editor", sysAdmin.Id);
+
+        var destBox = await AddBoxAsync(context, "RWG-R-MIX-BOX1", otherStudy.StudyID);
+        var specimen = await AddSpecimenAsync(context, "RWGR-MIX1", callerStudy.StudyID, null, null, null);
+
+        var model = BuildReboxModel(services, caller.Id);
+        model.DestinationBoxId = destBox.BoxID;
+        model.ScannedListJson = System.Text.Json.JsonSerializer.Serialize(new[]
+        {
+            new { SpecimenId = specimen.SpecimenID, Row = 1, Col = 1 }
+        });
+
+        var result = await model.OnPostCommitAsync();
+
+        Assert.IsType<PageResult>(result);
+        Assert.False(model.ModelState.IsValid);
+
+        var reloaded = await context.Specimens.AsNoTracking().SingleAsync(s => s.SpecimenID == specimen.SpecimenID);
+        Assert.Null(reloaded.BoxID);
+    }
 }

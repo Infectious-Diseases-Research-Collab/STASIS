@@ -40,28 +40,45 @@ namespace STASIS.Pages.Boxes
 
         public async Task<IActionResult> OnGetLookupAsync(string barcode, int? specimenId = null)
         {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
             Specimen? specimen = null;
 
             if (specimenId.HasValue)
             {
                 specimen = await _sampleService.GetSpecimenDetailAsync(specimenId.Value);
                 if (specimen == null) return new JsonResult(new { found = false });
+
+                // A specimen in a study the caller cannot even view must not be revealed to
+                // exist via this lookup -- same guard as Pages/Samples/Detail.cshtml.cs, just
+                // returning the existing "not found" JSON shape instead of NotFound().
+                if (!await _studyAccessService.CanViewAsync(userId, specimen.StudyID))
+                    return new JsonResult(new { found = false });
             }
             else
             {
                 var matches = await _sampleService.GetSpecimensByBarcode(barcode);
-                if (matches.Count == 0)
+
+                var visibleMatches = new List<Specimen>();
+                foreach (var match in matches)
+                {
+                    if (await _studyAccessService.CanViewAsync(userId, match.StudyID))
+                    {
+                        visibleMatches.Add(match);
+                    }
+                }
+
+                if (visibleMatches.Count == 0)
                     return new JsonResult(new { found = false });
 
-                if (matches.Count > 1)
+                if (visibleMatches.Count > 1)
                     return new JsonResult(new
                     {
                         found = false,
                         ambiguous = true,
-                        studies = matches.Select(s => new { specimenId = s.SpecimenID, study = s.Study?.StudyCode ?? "?" }).ToList()
+                        studies = visibleMatches.Select(s => new { specimenId = s.SpecimenID, study = s.Study?.StudyCode ?? "?" }).ToList()
                     });
 
-                specimen = matches[0];
+                specimen = visibleMatches[0];
             }
 
             return new JsonResult(new
@@ -126,6 +143,15 @@ namespace STASIS.Pages.Boxes
             catch (DbUpdateException)
             {
                 ModelState.AddModelError(string.Empty, "A position conflict occurred. Check for duplicates.");
+                await LoadBoxOptionsAsync(userId);
+                return Page();
+            }
+            catch (InvalidOperationException ex)
+            {
+                // Thrown by IStorageService.ValidateAndAssignBoxStudyAsync (via
+                // ReboxSpecimensAsync) when the destination box already holds a different
+                // study's specimens -- same pattern as Samples/Add.
+                ModelState.AddModelError(string.Empty, ex.Message);
                 await LoadBoxOptionsAsync(userId);
                 return Page();
             }

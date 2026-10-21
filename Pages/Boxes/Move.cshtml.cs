@@ -45,20 +45,39 @@ namespace STASIS.Pages.Boxes
 
         public async Task OnGetAsync()
         {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
+
             if (SpecimenId.HasValue)
             {
                 FoundSpecimen = await _sampleService.GetSpecimenDetailAsync(SpecimenId.Value);
+
+                // A specimen in a study the caller cannot even view must not be revealed to
+                // exist via this lookup -- treat it the same as "not found" rather than
+                // rendering its details, same guard as Pages/Samples/Detail.cshtml.cs.
+                if (FoundSpecimen != null && !await _studyAccessService.CanViewAsync(userId, FoundSpecimen.StudyID))
+                {
+                    FoundSpecimen = null;
+                }
             }
             else if (!string.IsNullOrEmpty(Barcode))
             {
                 var matches = await _sampleService.GetSpecimensByBarcode(Barcode);
-                if (matches.Count == 1)
-                    FoundSpecimen = matches[0];
-                else if (matches.Count > 1)
-                    AmbiguousSpecimens = matches;
+
+                var visibleMatches = new List<Specimen>();
+                foreach (var specimen in matches)
+                {
+                    if (await _studyAccessService.CanViewAsync(userId, specimen.StudyID))
+                    {
+                        visibleMatches.Add(specimen);
+                    }
+                }
+
+                if (visibleMatches.Count == 1)
+                    FoundSpecimen = visibleMatches[0];
+                else if (visibleMatches.Count > 1)
+                    AmbiguousSpecimens = visibleMatches;
             }
 
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
             await LoadBoxOptionsAsync(userId);
         }
 
@@ -107,6 +126,16 @@ namespace STASIS.Pages.Boxes
             catch (DbUpdateException)
             {
                 ModelState.AddModelError(string.Empty, "That position is already occupied.");
+                FoundSpecimen = specimen;
+                await LoadBoxOptionsAsync(userId);
+                return Page();
+            }
+            catch (InvalidOperationException ex)
+            {
+                // Thrown by IStorageService.ValidateAndAssignBoxStudyAsync (via
+                // MoveSpecimenAsync) when the destination box already holds a different
+                // study's specimens -- same pattern as Samples/Add.
+                ModelState.AddModelError(string.Empty, ex.Message);
                 FoundSpecimen = specimen;
                 await LoadBoxOptionsAsync(userId);
                 return Page();
