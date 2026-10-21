@@ -24,11 +24,17 @@
     <div class="col-md-3">
         <input asp-for="Input.StudyName" class="form-control" placeholder="Study name" />
     </div>
-    <div class="col-md-4">
+    <div class="col-md-3">
         <input asp-for="Input.PrincipalInvestigator" class="form-control" placeholder="Principal Investigator" />
     </div>
-    <div class="col-md-2">
-        <button type="submit" class="btn btn-primary w-100">Add</button>
+    <div class="col-md-3">
+        <select asp-for="Input.FirstStudyAdminUserId" asp-items="Model.Users" class="form-select">
+            <option value="">-- First Study Admin * --</option>
+        </select>
+        <span asp-validation-for="Input.FirstStudyAdminUserId" class="text-danger small"></span>
+    </div>
+    <div class="col-md-12">
+        <button type="submit" class="btn btn-primary">Add</button>
     </div>
 </form>
 

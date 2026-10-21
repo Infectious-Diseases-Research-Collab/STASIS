@@ -1,8 +1,10 @@
 using System.ComponentModel.DataAnnotations;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using STASIS.Data;
 using STASIS.Models;
@@ -15,14 +17,27 @@ namespace STASIS.Pages.LabSetup
     {
         private readonly StasisDbContext _context;
         private readonly IAuditService _auditService;
+        private readonly IStudyAccessService _studyAccessService;
+        private readonly UserManager<IdentityUser> _userManager;
 
-        public StudiesModel(StasisDbContext context, IAuditService auditService)
+        public StudiesModel(
+            StasisDbContext context,
+            IAuditService auditService,
+            IStudyAccessService studyAccessService,
+            UserManager<IdentityUser> userManager)
         {
             _context = context;
             _auditService = auditService;
+            _studyAccessService = studyAccessService;
+            _userManager = userManager;
         }
 
         public List<Study> Studies { get; set; } = new();
+
+        // All AspNetUsers, for picking a brand-new study's first Study Admin. Deliberately
+        // unscoped (not filtered by existing study access) -- any user in the system could
+        // become the first admin of a study that, by definition, nobody has access to yet.
+        public SelectList Users { get; set; } = new SelectList(Enumerable.Empty<IdentityUser>(), "Id", "Email");
 
         [BindProperty]
         public StudyInput Input { get; set; } = new();
@@ -43,18 +58,31 @@ namespace STASIS.Pages.LabSetup
             [StringLength(200)]
             [Display(Name = "Principal Investigator")]
             public string? PrincipalInvestigator { get; set; }
+
+            // Required only on Add (checked explicitly in OnPostAddAsync rather than via
+            // [Required] here) since the Edit modal doesn't collect this field and shares this
+            // same Input class.
+            [Display(Name = "First Study Admin")]
+            public string? FirstStudyAdminUserId { get; set; }
         }
 
         public async Task OnGetAsync()
         {
             Studies = await _context.Studies.OrderBy(s => s.StudyCode).ToListAsync();
+            Users = await BuildUserSelectListAsync();
         }
 
         public async Task<IActionResult> OnPostAddAsync()
         {
+            if (string.IsNullOrWhiteSpace(Input.FirstStudyAdminUserId))
+            {
+                ModelState.AddModelError("Input.FirstStudyAdminUserId", "Select the study's first Study Admin.");
+            }
+
             if (!ModelState.IsValid)
             {
                 Studies = await _context.Studies.OrderBy(s => s.StudyCode).ToListAsync();
+                Users = await BuildUserSelectListAsync();
                 return Page();
             }
 
@@ -75,12 +103,20 @@ namespace STASIS.Pages.LabSetup
             {
                 ModelState.AddModelError("Input.StudyCode", "This study code is already in use.");
                 Studies = await _context.Studies.OrderBy(s => s.StudyCode).ToListAsync();
+                Users = await BuildUserSelectListAsync();
                 return Page();
             }
 
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
             await _auditService.LogChangeAsync("tbl_Studies", study.StudyID.ToString(),
                 "Created", null, study.StudyCode, userId);
+
+            // GrantAccessAsync writes its own "tbl_UserStudyAccess" audit log entry (using the
+            // new UserStudyAccess row's own int ID as RecordID), so there is no separate
+            // LogChangeAsync call to make here. The System Admin who created the study does NOT
+            // get an implicit access row of their own -- per the design doc, they stay in
+            // System Admin override status unless they separately grant themselves access.
+            await _studyAccessService.GrantAccessAsync(Input.FirstStudyAdminUserId!, study.StudyID, "StudyAdmin", userId);
 
             TempData["Success"] = $"Study \"{study.StudyCode}\" added.";
             return RedirectToPage();
@@ -91,6 +127,7 @@ namespace STASIS.Pages.LabSetup
             if (!ModelState.IsValid || Input.StudyID == null)
             {
                 Studies = await _context.Studies.OrderBy(s => s.StudyCode).ToListAsync();
+                Users = await BuildUserSelectListAsync();
                 return Page();
             }
 
@@ -110,6 +147,7 @@ namespace STASIS.Pages.LabSetup
             {
                 ModelState.AddModelError("Input.StudyCode", "This study code is already in use.");
                 Studies = await _context.Studies.OrderBy(s => s.StudyCode).ToListAsync();
+                Users = await BuildUserSelectListAsync();
                 return Page();
             }
 
@@ -140,6 +178,15 @@ namespace STASIS.Pages.LabSetup
             await _context.SaveChangesAsync();
             TempData["Success"] = "Study deleted.";
             return RedirectToPage();
+        }
+
+        // Mirrors Pages/Administration/Users.cshtml.cs's use of _userManager.Users for listing
+        // every AspNetUser -- not a direct StasisDbContext query -- to build the "first Study
+        // Admin" dropdown.
+        private async Task<SelectList> BuildUserSelectListAsync()
+        {
+            var users = await _userManager.Users.OrderBy(u => u.Email).ToListAsync();
+            return new SelectList(users, "Id", "Email");
         }
     }
 }
