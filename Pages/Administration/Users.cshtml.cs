@@ -68,10 +68,7 @@ namespace STASIS.Pages.Administration
 
             var users = await _userManager.Users.ToListAsync();
             var userProfiles = await _context.UserProfiles.ToListAsync();
-            var allAccess = await _context.UserStudyAccesses
-                .AsNoTracking()
-                .Include(a => a.Study)
-                .ToListAsync();
+            var allAccess = await _studyAccessService.GetAllAccessRowsAsync();
 
             foreach (var user in users)
             {

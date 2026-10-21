@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using STASIS.Data;
+using STASIS.Models;
 
 namespace STASIS.Services;
 
@@ -79,6 +80,14 @@ public class StudyAccessService : IStudyAccessService
         }
 
         return await GetRoleAsync(userId, studyId) == StudyRole.StudyAdmin;
+    }
+
+    public async Task<List<UserStudyAccess>> GetAllAccessRowsAsync()
+    {
+        return await _context.UserStudyAccesses
+            .AsNoTracking()
+            .Include(a => a.Study)
+            .ToListAsync();
     }
 
     private static StudyRole MapRole(string? role) => role switch
