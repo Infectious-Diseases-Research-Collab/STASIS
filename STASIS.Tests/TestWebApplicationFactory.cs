@@ -27,15 +27,29 @@ namespace STASIS.Tests;
 /// destroy real data.
 ///
 /// Lifecycle notes:
-/// - The first time the underlying test host is created (first <see cref="WebApplicationFactory{TEntryPoint}.Services"/>
-///   access, e.g. via <c>CreateClient()</c> or <c>Services.CreateScope()</c>), this factory applies
-///   all pending EF Core migrations to the test database via <c>context.Database.Migrate()</c>.
+/// - Migration is caller-driven, NOT automatic. Simply accessing
+///   <see cref="WebApplicationFactory{TEntryPoint}.Services"/> (e.g. via <c>CreateClient()</c> or
+///   <c>Services.CreateScope()</c>) does NOT run any EF Core migrations — it only builds and starts
+///   the test host, which runs Program.cs's startup seed block against whatever schema already
+///   exists. Migrations are applied only when a caller explicitly calls
+///   <see cref="MigrateDatabaseAsync"/> or <see cref="ResetDatabaseAsync"/> (the latter migrates
+///   as a first step before truncating). Every test class that uses this fixture MUST call one of
+///   those two methods itself before touching <c>Services</c> for the first time — typically from
+///   its own test class's <c>IAsyncLifetime.InitializeAsync</c> — otherwise it may run against a
+///   stale or entirely unmigrated schema.
 /// - This factory does NOT reset data automatically between tests. xUnit's
 ///   <c>IClassFixture&lt;TestWebApplicationFactory&gt;</c> creates exactly one instance per test
 ///   class, shared by every test method in that class. Each test should call
 ///   <see cref="ResetDatabaseAsync"/> itself (e.g. at the start of its constructor, or from
 ///   <c>IAsyncLifetime.InitializeAsync</c>) to get a clean, predictable starting point before
 ///   seeding its own data. This mirrors how later tasks' test suites are expected to use it.
+/// - Parallelization: every test class backed by this fixture shares one physical
+///   <c>stasis_test</c> database, and <see cref="ResetDatabaseAsync"/> does a full-schema
+///   <c>TRUNCATE ... CASCADE</c>. xUnit v2 runs distinct test classes in parallel by default,
+///   which would let one class's reset wipe another class's in-flight data. This assembly
+///   disables that via <c>[assembly: CollectionBehavior(DisableTestParallelization = true)]</c>
+///   in <c>AssemblyInfo.cs</c> — do not remove that attribute or re-enable parallelization while
+///   any test class uses this fixture.
 /// </summary>
 public class TestWebApplicationFactory : WebApplicationFactory<Program>
 {
@@ -121,6 +135,31 @@ public class TestWebApplicationFactory : WebApplicationFactory<Program>
     /// fingerprint slightly differently than the design-time tooling (e.g. Postgres
     /// version-dependent conventions detected only once actually connected). Safe to ignore
     /// here since the design-time tooling is the source of truth for real schema drift.
+    ///
+    /// HOW THIS WAS VERIFIED (2026-10-21, on this exact codebase state): ran
+    /// <c>dotnet ef migrations add DiagnosePendingChanges --project STASIS.csproj</c>
+    /// against the real schema/model as they existed at the time, and the generated
+    /// migration's <c>Up</c>/<c>Down</c> methods were both completely empty — i.e. the
+    /// design-time tooling itself found zero difference between the compiled model and the
+    /// latest applied migration snapshot. That throwaway migration was then removed via
+    /// <c>dotnet ef migrations remove --force</c>; it was never applied to any database.
+    /// <c>dotnet ef migrations has-pending-model-changes</c> independently agreed (reported
+    /// no pending changes).
+    ///
+    /// THIS SUPPRESSION IS BLANKET AND PERMANENT, NOT TIED TO A SPECIFIC MIGRATION — it
+    /// will keep silencing this warning for every future model/migration change too, not
+    /// just the state verified above. That is a real risk: CLAUDE.md itself flags
+    /// "schema and models may drift" as a known gap in this repo (EF Core migrations are not
+    /// yet the adopted source of truth; the raw SQL bootstrap script is). If you add or
+    /// change a model/migration later and this warning would otherwise have fired, this
+    /// suppression means you will NOT be told. Before trusting <c>Database.Migrate()</c>
+    /// against this test fixture after such a change, re-run the same empty-diff check:
+    /// <c>dotnet ef migrations add &lt;ThrowawayName&gt; --project STASIS.csproj</c> and
+    /// confirm the generated <c>Up</c>/<c>Down</c> are empty (then
+    /// <c>dotnet ef migrations remove --force</c> to discard it), or run
+    /// <c>dotnet ef migrations has-pending-model-changes --project STASIS.csproj</c>. If
+    /// either reports real drift, do NOT just re-suppress — fix the drift (add the missing
+    /// migration) before relying on this fixture again.
     /// </summary>
     private static void IgnorePendingModelChangesWarning(WarningsConfigurationBuilder warnings) =>
         warnings.Ignore(RelationalEventId.PendingModelChangesWarning);
