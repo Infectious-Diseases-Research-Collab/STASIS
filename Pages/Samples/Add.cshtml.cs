@@ -258,7 +258,11 @@ namespace STASIS.Pages.Samples
 
         private async Task LoadDropdownsAsync()
         {
-            var studies = await _sampleService.GetAllStudies();
+            // This page's own study-scoping (restricting the Study dropdown, and the Visit
+            // Type/Box dropdowns once a study is selected, to the caller's visible studies) is
+            // deferred to a later task -- see STASIS_Deferred_Items.md item 9. Passing null here
+            // is the intentional, explicit "unfiltered for now" call, not an accidental default.
+            var studies = await _sampleService.GetAllStudies(null);
             StudyOptions = new SelectList(studies, "StudyID", "StudyCode");
 
             var visitTypes = await _sampleService.GetAllVisitTypes();

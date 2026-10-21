@@ -16,7 +16,7 @@ public class SampleService : ISampleService
         _auditService = auditService;
     }
 
-    public async Task<(List<Specimen> Specimens, int TotalCount)> GetSpecimensAsync(string? searchString, int? studyId, int? sampleTypeId, string? participantId, int pageIndex, int pageSize, IReadOnlyCollection<int>? visibleStudyIds = null)
+    public async Task<(List<Specimen> Specimens, int TotalCount)> GetSpecimensAsync(string? searchString, int? studyId, int? sampleTypeId, string? participantId, int pageIndex, int pageSize, IReadOnlyCollection<int>? visibleStudyIds)
     {
         var query = _context.Specimens
             .Include(s => s.Study)
@@ -62,7 +62,7 @@ public class SampleService : ISampleService
         return (specimens, totalCount);
     }
 
-    public async Task<List<Study>> GetAllStudies(IReadOnlyCollection<int>? visibleStudyIds = null)
+    public async Task<List<Study>> GetAllStudies(IReadOnlyCollection<int>? visibleStudyIds)
     {
         var query = _context.Studies.AsQueryable();
 
