@@ -335,28 +335,42 @@ always a way to grant access before anything starts requiring it.
 
 **Files:**
 - Modify: `Program.cs:85` (the `foreach (var role in new[] { "Admin", "Write", "Read" })` block)
+- Create: `STASIS.Tests/TestWebApplicationFactory.cs`
 - Test: `STASIS.Tests/Integration/AdminSeedTests.cs`
 
 **Interfaces:**
 - Consumes: nothing new.
-- Produces: nothing new (behavior-only change).
+- Produces: `STASIS.Tests.TestWebApplicationFactory : WebApplicationFactory<Program>` —
+  a shared fixture, reused by every later integration/security test task
+  (9, 10, 12, 13, 14, 15) via xUnit's `IClassFixture<TestWebApplicationFactory>`.
+  This is the first task in the plan that needs a `WebApplicationFactory`,
+  so it owns creating it; no later task may create a second one — they
+  consume this file.
 
-- [ ] **Step 1: Write a failing integration test** asserting that after
+- [ ] **Step 1: Create the shared `TestWebApplicationFactory`.** It points
+  at a throwaway Postgres test database via a connection string read from
+  the `STASIS_TEST_CONNECTION` environment variable (document this
+  requirement in a comment on the class), overrides the app's
+  `StasisDbContext` registration to use that connection string, and runs
+  `context.Database.Migrate()` plus a data-reset (delete all rows in
+  dependency order, or recreate the schema — your call, document whichever
+  you pick) in a way each test can call between tests to avoid
+  cross-test pollution.
+
+- [ ] **Step 2: Write a failing integration test** asserting that after
   startup, Identity role `"Write"` and `"Read"` are not created (only
-  `"Admin"` is), using a `WebApplicationFactory<Program>` pointed at a
-  throwaway Postgres test database (see Task 15 for the shared test-DB
-  setup this task can reuse early).
+  `"Admin"` is), using `TestWebApplicationFactory`.
 
-- [ ] **Step 2: Run test, confirm it fails**
+- [ ] **Step 3: Run test, confirm it fails**
 
-- [ ] **Step 3: Change the seeded role list to `new[] { "Admin" }`**
+- [ ] **Step 4: Change the seeded role list to `new[] { "Admin" }`**
 
 Leave any already-existing `"Write"`/`"Read"` rows in `AspNetRoles`
 untouched — per the design doc, cleanup is optional, not required.
 
-- [ ] **Step 4: Run test, confirm it passes**
+- [ ] **Step 5: Run test, confirm it passes**
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Commit**
 
 ### Task 5: Scope the Administration/Users list
 
@@ -560,17 +574,24 @@ untouched — per the design doc, cleanup is optional, not required.
 
 - [ ] **Step 1: Write failing tests**: a Viewer on Study A searching boxes
   never sees a box whose `StudyID` is Study B; an **unassigned empty box**
-  (`StudyID == null`) is visible to everyone with any study access — it's
-  not yet claimed by any study, so hiding it would make it undiscoverable
-  to place a first specimen into; a System Admin sees everything.
+  (`StudyID == null`) is visible to a user who has access to *at least
+  one* study — it's not yet claimed by any study, so hiding it would make
+  it undiscoverable to place a first specimen into; a user with **zero**
+  study assignments sees no boxes at all, including unassigned ones —
+  per the design doc's "zero access means an empty state, never a
+  fallback to see everything," which applies here too, not just to
+  specimens; a System Admin sees everything.
 
 - [ ] **Step 2: Run tests, confirm they fail**
 
-- [ ] **Step 3: Implement.** Add the filter to each query:
-  `box.StudyID == null || visibleStudyIds.Contains(box.StudyID.Value)`
-  when `visibleStudyIds` is non-null. Wire `SearchModel.OnGetAsync` to
-  resolve and pass `GetVisibleStudyIdsAsync` through to all four service
-  calls it currently makes unfiltered.
+- [ ] **Step 3: Implement.** Add the filter to each query: when
+  `visibleStudyIds` is non-null, first check `visibleStudyIds.Count == 0`
+  — if so, the query returns nothing (don't run the box query at all, or
+  add a `Where(_ => false)`, implementer's choice). Otherwise filter with
+  `box.StudyID == null || visibleStudyIds.Contains(box.StudyID.Value)`.
+  When `visibleStudyIds` is null (System Admin), no filter at all. Wire
+  `SearchModel.OnGetAsync` to resolve and pass `GetVisibleStudyIdsAsync`
+  through to all four service calls it currently makes unfiltered.
 
 - [ ] **Step 4: Run tests, confirm they pass**
 
@@ -774,18 +795,15 @@ untouched — per the design doc, cleanup is optional, not required.
 **Files:**
 - Create: `STASIS.Tests/Security/StudyAccessIdorTests.cs`
 - Modify: `Program.cs` (tighten `SecurityStampValidatorOptions.ValidationInterval`)
-- Create: `STASIS.Tests/TestWebApplicationFactory.cs` (shared fixture, if
-  Task 4 didn't already produce one — check before creating a duplicate)
 
 **Interfaces:**
-- Consumes: the full stack built in Tasks 1-14.
+- Consumes: `STASIS.Tests.TestWebApplicationFactory` (created in Task 4 —
+  reuse it via `IClassFixture<TestWebApplicationFactory>`; do not create a
+  second fixture), and the full stack built in Tasks 1-14.
 
-- [ ] **Step 1: Write failing tests**, each using
-  `WebApplicationFactory<Program>` against a real test Postgres database
-  (connection string from an environment variable, e.g.
-  `STASIS_TEST_CONNECTION`, documented in a short comment on the fixture;
-  migrate with `context.Database.Migrate()` in fixture setup, reset data
-  between tests):
+- [ ] **Step 1: Write failing tests**, each using the shared
+  `TestWebApplicationFactory` from Task 4 against its test Postgres
+  database (migrate/reset-between-tests behavior already built there):
   - A Viewer-only user posting `Samples/Add` with a tampered `StudyID` for
     a study they don't have Editor access to gets a `ModelState` error,
     and no specimen is created.
