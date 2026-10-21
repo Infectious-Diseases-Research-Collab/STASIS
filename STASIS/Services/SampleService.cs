@@ -269,7 +269,7 @@ public class SampleService : ISampleService
         }
     }
 
-    public async Task<ImportResult> ImportSpecimensFromCsv(Stream csvStream)
+    public async Task<ImportResult> ImportSpecimensFromCsv(Stream csvStream, IReadOnlyCollection<int>? editableStudyIds)
     {
         var result = new ImportResult();
         var lines = new List<string>();
@@ -346,6 +346,19 @@ public class SampleService : ISampleService
                 continue;
             }
             int studyId = study.StudyID;
+
+            // Per-row access check: the caller must hold Editor-or-above access to this row's
+            // study. editableStudyIds == null means unrestricted (System Admin). This mirrors
+            // the write-side access enforcement already applied to Samples/Add -- CSV import is
+            // just another write path, so a row targeting a study the caller cannot edit is
+            // rejected the same way a bad barcode or box label is: added to ErrorRows, import
+            // continues with the next row.
+            if (editableStudyIds != null && !editableStudyIds.Contains(studyId))
+            {
+                importRow.Error = $"You do not have edit access to study '{importRow.StudyCode}'.";
+                result.ErrorRows.Add(importRow);
+                continue;
+            }
 
             // Validate barcode uniqueness within this study
             if (existingBarcodeSet.Contains((studyId, importRow.BarcodeID)))

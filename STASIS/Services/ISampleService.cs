@@ -27,7 +27,12 @@ public interface ISampleService
     Task DeleteVisitType(int id, string userId);
     Task UpdateSpecimen(Specimen specimen);
     Task DeleteSpecimen(int id);
-    Task<ImportResult> ImportSpecimensFromCsv(Stream csvStream);
+    // editableStudyIds: null = unrestricted (System Admin), otherwise the caller's exact set of
+    // studies they hold Editor-or-above access to (see Pages/Samples/Import.cshtml.cs for how
+    // that set is resolved). A row whose resolved study is outside this set is added to
+    // ErrorRows instead of SuccessRows, same continue-on-error pattern as every other per-row
+    // validation in this method.
+    Task<ImportResult> ImportSpecimensFromCsv(Stream csvStream, IReadOnlyCollection<int>? editableStudyIds);
 
     // Discard workflow
     Task<Approval> RequestDiscardAsync(List<int> specimenIds, string userId);
