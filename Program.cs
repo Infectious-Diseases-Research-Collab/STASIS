@@ -83,7 +83,7 @@ using (var scope = app.Services.CreateScope())
         var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
 
         // Ensure all roles exist
-        foreach (var role in new[] { "Admin", "Write", "Read" })
+        foreach (var role in new[] { "Admin" })
         {
             if (!await roleManager.RoleExistsAsync(role))
                 await roleManager.CreateAsync(new IdentityRole(role));
@@ -105,3 +105,8 @@ using (var scope = app.Services.CreateScope())
 }
 
 app.Run();
+
+// Exposes the implicit Program class generated for this top-level-statements file so that
+// WebApplicationFactory<Program> (used by STASIS.Tests' TestWebApplicationFactory) can
+// reference it from the test project.
+public partial class Program { }
