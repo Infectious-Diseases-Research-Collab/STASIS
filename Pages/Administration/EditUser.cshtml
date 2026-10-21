@@ -100,7 +100,8 @@
                     <td>
                         @if (row.CallerCanManage)
                         {
-                            <form method="post" asp-page-handler="ChangeRole" class="d-inline-flex align-items-center gap-2 me-2">
+                            <form method="post" asp-page-handler="ChangeRole" class="d-inline-flex align-items-center gap-2 me-2"
+                                  onsubmit="return confirm('Change this user\'s role on @row.StudyCode?');">
                                 <input type="hidden" name="userId" value="@Model.Input.UserId" />
                                 <input type="hidden" name="studyId" value="@row.StudyID" />
                                 <select name="newRole" class="form-select form-select-sm" style="width: auto;">

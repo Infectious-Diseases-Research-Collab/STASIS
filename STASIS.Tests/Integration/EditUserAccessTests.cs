@@ -360,4 +360,72 @@ public class EditUserAccessTests : IClassFixture<TestWebApplicationFactory>, IAs
             .SingleAsync(a => a.AspNetUserId == viewerOnOtherStudy.Id && a.StudyID == unmanagedStudy.StudyID);
         Assert.Equal("Viewer", access.Role);
     }
+
+    // Regression coverage for the authorization-architecture change in this task: removing the
+    // class-level [Authorize(Roles = "Admin")] in favor of per-handler checks must not have
+    // reopened the account-wide (non-study-scoped) handlers -- profile fields and password reset
+    // -- to a caller who is only a Study Admin, never a System Admin.
+    [Fact]
+    public async Task StudyAdminOnlyCaller_PostingProfileFields_GetsForbid()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var services = scope.ServiceProvider;
+        var context = services.GetRequiredService<StasisDbContext>();
+
+        var sysAdmin = await CreateSystemAdminAsync(services, "sysadmin9@test.com");
+
+        var study = new Study { StudyCode = "EU-FORBIDPROFILE" };
+        context.Studies.Add(study);
+        await context.SaveChangesAsync();
+
+        var studyAdmin = await CreateUserAsync(services, "studyadmin9@test.com");
+        await GrantAsync(context, studyAdmin.Id, study.StudyID, "StudyAdmin", sysAdmin.Id);
+
+        var targetUser = await CreateUserAsync(services, "target9@test.com");
+
+        var model = BuildPageModel(services, studyAdmin.Id);
+        model.Input = new EditUserModel.InputModel
+        {
+            UserId = targetUser.Id,
+            Department = "Attempted escalation"
+        };
+
+        var result = await model.OnPostAsync();
+
+        Assert.IsType<ForbidResult>(result);
+
+        var profile = await context.UserProfiles.AsNoTracking()
+            .SingleOrDefaultAsync(p => p.AspNetUserId == targetUser.Id);
+        Assert.True(profile == null || profile.Department != "Attempted escalation");
+    }
+
+    [Fact]
+    public async Task StudyAdminOnlyCaller_PostingResetPassword_GetsForbid()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var services = scope.ServiceProvider;
+        var context = services.GetRequiredService<StasisDbContext>();
+        var userManager = services.GetRequiredService<UserManager<IdentityUser>>();
+
+        var sysAdmin = await CreateSystemAdminAsync(services, "sysadmin10@test.com");
+
+        var study = new Study { StudyCode = "EU-FORBIDRESET" };
+        context.Studies.Add(study);
+        await context.SaveChangesAsync();
+
+        var studyAdmin = await CreateUserAsync(services, "studyadmin10@test.com");
+        await GrantAsync(context, studyAdmin.Id, study.StudyID, "StudyAdmin", sysAdmin.Id);
+
+        var targetUser = await CreateUserAsync(services, "target10@test.com");
+        var originalPasswordHash = targetUser.PasswordHash;
+
+        var model = BuildPageModel(services, studyAdmin.Id);
+
+        var result = await model.OnPostResetPasswordAsync(targetUser.Id, "NewPassw0rd!2");
+
+        Assert.IsType<ForbidResult>(result);
+
+        var refreshedUser = await userManager.FindByIdAsync(targetUser.Id);
+        Assert.Equal(originalPasswordHash, refreshedUser!.PasswordHash);
+    }
 }
