@@ -29,6 +29,7 @@ builder.Services.AddScoped<IStorageService, StorageService>();
 builder.Services.AddScoped<IAuditService, AuditService>();
 builder.Services.AddScoped<ILabSetupService, LabSetupService>();
 builder.Services.AddScoped<IShipmentService, ShipmentService>();
+builder.Services.AddScoped<IStudyAccessService, StudyAccessService>();
 
 builder.Services.AddRazorPages()
     .AddMvcOptions(options =>
