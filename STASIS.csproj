@@ -27,6 +27,15 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- STASIS.Tests is a sibling project under the repo root; exclude its
+         sources so they aren't swept up by this project's default globs. -->
+    <Compile Remove="STASIS.Tests/**/*.cs" />
+    <Content Remove="STASIS.Tests/**/*" />
+    <EmbeddedResource Remove="STASIS.Tests/**/*" />
+    <None Remove="STASIS.Tests/**/*" />
+  </ItemGroup>
+
+  <ItemGroup>
     <EmbeddedResource Update="Properties\Resources.resx">
       <Generator>ResXFileCodeGenerator</Generator>
       <LastGenOutput>Resources.Designer.cs</LastGenOutput>

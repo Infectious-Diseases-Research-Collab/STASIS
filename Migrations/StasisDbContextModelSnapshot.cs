@@ -885,6 +885,49 @@ namespace STASIS.Migrations
                     b.ToTable("tbl_UserProfiles", (string)null);
                 });
 
+            modelBuilder.Entity("STASIS.Models.UserStudyAccess", b =>
+                {
+                    b.Property<int>("UserStudyAccessID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("UserStudyAccessID"));
+
+                    b.Property<string>("AspNetUserId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("GrantedByUserId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("GrantedDate")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("StudyID")
+                        .HasColumnType("integer");
+
+                    b.HasKey("UserStudyAccessID");
+
+                    b.HasIndex("GrantedByUserId");
+
+                    b.HasIndex("StudyID");
+
+                    b.HasIndex("AspNetUserId", "StudyID")
+                        .IsUnique();
+
+                    b.ToTable("tbl_UserStudyAccess", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_UserStudyAccess_Role", "\"Role\" IN ('Viewer', 'Editor', 'StudyAdmin')");
+                        });
+                });
+
             modelBuilder.Entity("STASIS.Models.VisitType", b =>
                 {
                     b.Property<int>("VisitTypeID")
@@ -1181,6 +1224,33 @@ namespace STASIS.Migrations
                         .HasForeignKey("AspNetUserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("STASIS.Models.UserStudyAccess", b =>
+                {
+                    b.HasOne("Microsoft.AspNetCore.Identity.IdentityUser", "User")
+                        .WithMany()
+                        .HasForeignKey("AspNetUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Microsoft.AspNetCore.Identity.IdentityUser", "GrantedByUser")
+                        .WithMany()
+                        .HasForeignKey("GrantedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("STASIS.Models.Study", "Study")
+                        .WithMany()
+                        .HasForeignKey("StudyID")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("GrantedByUser");
+
+                    b.Navigation("Study");
 
                     b.Navigation("User");
                 });

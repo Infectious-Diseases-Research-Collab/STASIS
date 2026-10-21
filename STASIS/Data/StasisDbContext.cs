@@ -26,6 +26,7 @@ public class StasisDbContext : IdentityDbContext
     public DbSet<ShipmentContent> ShipmentContents { get; set; }
     public DbSet<FilterPaperUsage> FilterPaperUsages { get; set; }
     public DbSet<AuditLog> AuditLogs { get; set; }
+    public DbSet<UserStudyAccess> UserStudyAccesses { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -47,6 +48,7 @@ public class StasisDbContext : IdentityDbContext
         modelBuilder.Entity<ShipmentContent>().ToTable("tbl_ShipmentContents");
         modelBuilder.Entity<FilterPaperUsage>().ToTable("tbl_FilterPaperUsages");
         modelBuilder.Entity<AuditLog>().ToTable("tbl_AuditLog");
+        modelBuilder.Entity<UserStudyAccess>().ToTable("tbl_UserStudyAccess");
 
         modelBuilder.Entity<UserProfile>()
             .HasIndex(p => p.AspNetUserId)
@@ -341,5 +343,39 @@ public class StasisDbContext : IdentityDbContext
             .WithMany()
             .HasForeignKey(a => a.ChangedByUserId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<UserStudyAccess>()
+            .HasIndex(a => new { a.AspNetUserId, a.StudyID })
+            .IsUnique();
+
+        modelBuilder.Entity<UserStudyAccess>()
+            .HasIndex(a => a.StudyID);
+
+        modelBuilder.Entity<UserStudyAccess>()
+            .ToTable(t => t.HasCheckConstraint(
+                "CK_UserStudyAccess_Role",
+                "\"Role\" IN ('Viewer', 'Editor', 'StudyAdmin')"));
+
+        modelBuilder.Entity<UserStudyAccess>()
+            .Property(a => a.GrantedDate)
+            .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+        modelBuilder.Entity<UserStudyAccess>()
+            .HasOne(a => a.User)
+            .WithMany()
+            .HasForeignKey(a => a.AspNetUserId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<UserStudyAccess>()
+            .HasOne(a => a.GrantedByUser)
+            .WithMany()
+            .HasForeignKey(a => a.GrantedByUserId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<UserStudyAccess>()
+            .HasOne(a => a.Study)
+            .WithMany()
+            .HasForeignKey(a => a.StudyID)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }
