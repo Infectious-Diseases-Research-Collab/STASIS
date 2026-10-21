@@ -5,6 +5,7 @@ using STASIS.Models;
 using STASIS.Services;
 using System;
 using System.Collections.Generic;
+using System.Security.Claims;
 using System.Threading.Tasks;
 
 namespace STASIS.Pages
@@ -12,11 +13,13 @@ namespace STASIS.Pages
     public class SamplesModel : PageModel
     {
         private readonly ISampleService _sampleService;
+        private readonly IStudyAccessService _studyAccessService;
         private const int PageSize = 25;
 
-        public SamplesModel(ISampleService sampleService)
+        public SamplesModel(ISampleService sampleService, IStudyAccessService studyAccessService)
         {
             _sampleService = sampleService;
+            _studyAccessService = studyAccessService;
         }
 
         public List<Specimen> Specimens { get; set; } = new List<Specimen>();
@@ -47,14 +50,17 @@ namespace STASIS.Pages
         {
             PageIndex = pageIndex ?? 1;
 
-            var studies = await _sampleService.GetAllStudies();
+            var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? string.Empty;
+            var visibleStudyIds = await _studyAccessService.GetVisibleStudyIdsAsync(currentUserId);
+
+            var studies = await _sampleService.GetAllStudies(visibleStudyIds);
             var sampleTypes = await _sampleService.GetAllSampleTypes();
 
             Studies = new SelectList(studies, nameof(Study.StudyID), nameof(Study.StudyCode), StudyId);
             SampleTypes = new SelectList(sampleTypes, nameof(SampleType.SampleTypeID), nameof(SampleType.TypeName), SampleTypeId);
 
-            var (specimens, totalCount) = await _sampleService.GetSpecimensAsync(SearchString, StudyId, SampleTypeId, ParticipantId, PageIndex, PageSize);
-            
+            var (specimens, totalCount) = await _sampleService.GetSpecimensAsync(SearchString, StudyId, SampleTypeId, ParticipantId, PageIndex, PageSize, visibleStudyIds);
+
             Specimens = specimens;
             TotalItems = totalCount;
             TotalPages = (int)Math.Ceiling(TotalItems / (double)PageSize);

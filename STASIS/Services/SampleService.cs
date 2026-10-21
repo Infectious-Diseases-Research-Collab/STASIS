@@ -16,7 +16,7 @@ public class SampleService : ISampleService
         _auditService = auditService;
     }
 
-    public async Task<(List<Specimen> Specimens, int TotalCount)> GetSpecimensAsync(string? searchString, int? studyId, int? sampleTypeId, string? participantId, int pageIndex, int pageSize)
+    public async Task<(List<Specimen> Specimens, int TotalCount)> GetSpecimensAsync(string? searchString, int? studyId, int? sampleTypeId, string? participantId, int pageIndex, int pageSize, IReadOnlyCollection<int>? visibleStudyIds = null)
     {
         var query = _context.Specimens
             .Include(s => s.Study)
@@ -38,6 +38,11 @@ public class SampleService : ISampleService
             query = query.Where(s => s.StudyID == studyId.Value);
         }
 
+        if (visibleStudyIds != null)
+        {
+            query = query.Where(s => visibleStudyIds.Contains(s.StudyID));
+        }
+
         if (sampleTypeId.HasValue)
         {
             query = query.Where(s => s.SampleTypeID == sampleTypeId.Value);
@@ -57,9 +62,16 @@ public class SampleService : ISampleService
         return (specimens, totalCount);
     }
 
-    public async Task<List<Study>> GetAllStudies()
+    public async Task<List<Study>> GetAllStudies(IReadOnlyCollection<int>? visibleStudyIds = null)
     {
-        return await _context.Studies.OrderBy(s => s.StudyCode).ToListAsync();
+        var query = _context.Studies.AsQueryable();
+
+        if (visibleStudyIds != null)
+        {
+            query = query.Where(s => visibleStudyIds.Contains(s.StudyID));
+        }
+
+        return await query.OrderBy(s => s.StudyCode).ToListAsync();
     }
 
     public async Task<List<SampleType>> GetAllSampleTypes()

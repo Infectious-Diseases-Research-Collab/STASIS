@@ -4,8 +4,12 @@ namespace STASIS.Services;
 
 public interface ISampleService
 {
-    Task<(List<Specimen> Specimens, int TotalCount)> GetSpecimensAsync(string? searchString, int? studyId, int? sampleTypeId, string? participantId, int pageIndex, int pageSize);
-    Task<List<Study>> GetAllStudies();
+    // visibleStudyIds: null = unrestricted (System Admin), otherwise the caller's exact set of
+    // assigned study ids (per IStudyAccessService.GetVisibleStudyIdsAsync) -- results are
+    // filtered to that set. Pass once-resolved sets here rather than calling CanViewAsync per
+    // row, to avoid an N+1 DB+Identity round-trip per specimen/study.
+    Task<(List<Specimen> Specimens, int TotalCount)> GetSpecimensAsync(string? searchString, int? studyId, int? sampleTypeId, string? participantId, int pageIndex, int pageSize, IReadOnlyCollection<int>? visibleStudyIds = null);
+    Task<List<Study>> GetAllStudies(IReadOnlyCollection<int>? visibleStudyIds = null);
     Task<List<SampleType>> GetAllSampleTypes();
     Task<List<Specimen>> GetSpecimensByBarcode(string barcode);
     Task<bool> IsBarcodeTaken(string barcode, int studyId);
