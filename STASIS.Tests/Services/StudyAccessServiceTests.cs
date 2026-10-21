@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using STASIS.Models;
 using STASIS.Services;
 using STASIS.Tests.TestHelpers;
@@ -21,7 +22,7 @@ public class StudyAccessServiceTests
 
         const int studyId = 42; // no UserStudyAccess row exists for this study/user
 
-        var service = new StudyAccessService(context, userManager);
+        var service = new StudyAccessService(context, userManager, new AuditService(context));
 
         Assert.True(await service.IsSystemAdminAsync(admin.Id));
         Assert.True(await service.CanViewAsync(admin.Id, studyId));
@@ -49,7 +50,7 @@ public class StudyAccessServiceTests
         });
         await context.SaveChangesAsync();
 
-        var service = new StudyAccessService(context, userManager);
+        var service = new StudyAccessService(context, userManager, new AuditService(context));
 
         Assert.Equal(StudyRole.Viewer, await service.GetRoleAsync(viewer.Id, studyId));
         Assert.True(await service.CanViewAsync(viewer.Id, studyId));
@@ -77,7 +78,7 @@ public class StudyAccessServiceTests
         });
         await context.SaveChangesAsync();
 
-        var service = new StudyAccessService(context, userManager);
+        var service = new StudyAccessService(context, userManager, new AuditService(context));
 
         Assert.Equal(StudyRole.Editor, await service.GetRoleAsync(editor.Id, studyId));
         Assert.True(await service.CanViewAsync(editor.Id, studyId));
@@ -105,7 +106,7 @@ public class StudyAccessServiceTests
         });
         await context.SaveChangesAsync();
 
-        var service = new StudyAccessService(context, userManager);
+        var service = new StudyAccessService(context, userManager, new AuditService(context));
 
         Assert.Equal(StudyRole.StudyAdmin, await service.GetRoleAsync(studyAdmin.Id, studyId));
         Assert.True(await service.CanViewAsync(studyAdmin.Id, studyId));
@@ -124,7 +125,7 @@ public class StudyAccessServiceTests
 
         const int studyId = 1;
 
-        var service = new StudyAccessService(context, userManager);
+        var service = new StudyAccessService(context, userManager, new AuditService(context));
 
         Assert.False(await service.IsSystemAdminAsync(staff.Id));
         Assert.Equal(StudyRole.None, await service.GetRoleAsync(staff.Id, studyId));
@@ -144,7 +145,7 @@ public class StudyAccessServiceTests
         await userManager.CreateAsync(admin);
         await userManager.AddToRoleAsync(admin, "Admin");
 
-        var service = new StudyAccessService(context, userManager);
+        var service = new StudyAccessService(context, userManager, new AuditService(context));
 
         Assert.Null(await service.GetVisibleStudyIdsAsync(admin.Id));
     }
@@ -170,11 +171,39 @@ public class StudyAccessServiceTests
         );
         await context.SaveChangesAsync();
 
-        var service = new StudyAccessService(context, userManager);
+        var service = new StudyAccessService(context, userManager, new AuditService(context));
 
         var visible = await service.GetVisibleStudyIdsAsync(staff.Id);
 
         Assert.NotNull(visible);
         Assert.Equal(new[] { 1, 2, 3 }, visible!.OrderBy(id => id));
+    }
+
+    [Fact]
+    public async Task GrantAccessAsync_WritesAuditLogEntry_WithRecordIdMatchingNewRow()
+    {
+        var context = TestDbContextFactory.Create();
+        var (userManager, _) = IdentityTestFactory.Create(context);
+
+        var granter = new IdentityUser { UserName = "granter@test.com", Email = "granter@test.com" };
+        var grantee = new IdentityUser { UserName = "grantee@test.com", Email = "grantee@test.com" };
+        await userManager.CreateAsync(granter);
+        await userManager.CreateAsync(grantee);
+
+        const int studyId = 7;
+
+        var service = new StudyAccessService(context, userManager, new AuditService(context));
+
+        await service.GrantAccessAsync(grantee.Id, studyId, "Editor", granter.Id);
+
+        // The AspNetUserId/GrantedByUserId are GUID strings — int.TryParse on either would
+        // always fail and silently collapse RecordID to 0. The audit log's RecordID must
+        // instead be the newly-created UserStudyAccess row's own int UserStudyAccessID.
+        var access = await context.UserStudyAccesses.SingleAsync(a => a.AspNetUserId == grantee.Id);
+        Assert.NotEqual(0, access.UserStudyAccessID);
+
+        var auditLog = await context.AuditLogs.SingleAsync(a => a.TableName == "tbl_UserStudyAccess");
+        Assert.Equal(access.UserStudyAccessID, auditLog.RecordID);
+        Assert.Equal(granter.Id, auditLog.ChangedByUserId);
     }
 }

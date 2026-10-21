@@ -79,7 +79,7 @@ namespace STASIS.Pages.Administration
             }
 
             CallerIsSystemAdmin = authorization.IsSystemAdmin;
-            Studies = await BuildStudySelectListAsync(authorization.IsSystemAdmin, authorization.ManagedStudyIds);
+            Studies = await BuildStudySelectListAsync(currentUserId);
             return Page();
         }
 
@@ -122,7 +122,7 @@ namespace STASIS.Pages.Administration
 
             if (!ModelState.IsValid)
             {
-                Studies = await BuildStudySelectListAsync(authorization.IsSystemAdmin, authorization.ManagedStudyIds);
+                Studies = await BuildStudySelectListAsync(currentUserId);
                 return Page();
             }
 
@@ -152,10 +152,10 @@ namespace STASIS.Pages.Administration
 
                 if (Input.StudyID.HasValue && !string.IsNullOrWhiteSpace(Input.StudyRole))
                 {
+                    // GrantAccessAsync writes its own "tbl_UserStudyAccess" audit log entry
+                    // (using the new UserStudyAccess row's own int ID as RecordID), so there is
+                    // no separate LogChangeAsync call to make here.
                     await _studyAccessService.GrantAccessAsync(user.Id, Input.StudyID.Value, Input.StudyRole, currentUserId);
-
-                    await _auditService.LogChangeAsync("tbl_UserStudyAccess", user.Id,
-                        "Created", null, $"StudyID: {Input.StudyID.Value}, Role: {Input.StudyRole}", currentUserId);
                 }
 
                 return RedirectToPage("./Users");
@@ -166,7 +166,7 @@ namespace STASIS.Pages.Administration
                 ModelState.AddModelError(string.Empty, error.Description);
             }
 
-            Studies = await BuildStudySelectListAsync(authorization.IsSystemAdmin, authorization.ManagedStudyIds);
+            Studies = await BuildStudySelectListAsync(currentUserId);
             return Page();
         }
 
@@ -202,15 +202,9 @@ namespace STASIS.Pages.Administration
             return new CallerAuthorization(isSystemAdmin, managedStudyIds, false);
         }
 
-        private async Task<SelectList> BuildStudySelectListAsync(bool isSystemAdmin, HashSet<int> managedStudyIds)
+        private async Task<SelectList> BuildStudySelectListAsync(string currentUserId)
         {
-            var studies = isSystemAdmin
-                ? await _context.Studies.OrderBy(s => s.StudyCode).ToListAsync()
-                : await _context.Studies
-                    .Where(s => managedStudyIds.Contains(s.StudyID))
-                    .OrderBy(s => s.StudyCode)
-                    .ToListAsync();
-
+            var studies = await _studyAccessService.GetManageableStudiesAsync(currentUserId);
             return new SelectList(studies, "StudyID", "StudyCode");
         }
     }

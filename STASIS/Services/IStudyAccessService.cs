@@ -20,5 +20,14 @@ public interface IStudyAccessService
     // (e.g. Administration/CreateUser) write access grants without calling
     // StasisDbContext directly, per this codebase's "services only" data-access rule. Callers
     // are responsible for authorizing the grant (e.g. CanManageStudyAsync) before calling this.
+    // Also writes the "tbl_UserStudyAccess" audit log entry itself, using the newly-created
+    // row's own UserStudyAccessID as RecordID (not the caller-supplied userId, which is a GUID
+    // string and would never parse into AuditLog.RecordID's int column).
     Task GrantAccessAsync(string userId, int studyId, string role, string grantedByUserId);
+
+    // Studies the given user may assign other users to / manage: every study for a System
+    // Admin, or only the studies where they hold the StudyAdmin role otherwise. Lets page models
+    // (e.g. Administration/CreateUser) build a study picker without calling StasisDbContext
+    // directly, per this codebase's "services only" data-access rule.
+    Task<List<Study>> GetManageableStudiesAsync(string userId);
 }

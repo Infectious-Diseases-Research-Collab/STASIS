@@ -11,11 +11,13 @@ public class StudyAccessService : IStudyAccessService
 
     private readonly StasisDbContext _context;
     private readonly UserManager<IdentityUser> _userManager;
+    private readonly IAuditService _auditService;
 
-    public StudyAccessService(StasisDbContext context, UserManager<IdentityUser> userManager)
+    public StudyAccessService(StasisDbContext context, UserManager<IdentityUser> userManager, IAuditService auditService)
     {
         _context = context;
         _userManager = userManager;
+        _auditService = auditService;
     }
 
     public async Task<bool> IsSystemAdminAsync(string userId)
@@ -92,16 +94,48 @@ public class StudyAccessService : IStudyAccessService
 
     public async Task GrantAccessAsync(string userId, int studyId, string role, string grantedByUserId)
     {
-        _context.UserStudyAccesses.Add(new UserStudyAccess
+        var access = new UserStudyAccess
         {
             AspNetUserId = userId,
             StudyID = studyId,
             Role = role,
             GrantedByUserId = grantedByUserId,
             GrantedDate = DateTime.UtcNow
-        });
+        };
 
+        _context.UserStudyAccesses.Add(access);
         await _context.SaveChangesAsync();
+
+        // Logged here (rather than by the caller) so RecordID is always the newly-created row's
+        // own int UserStudyAccessID, available only after SaveChangesAsync assigns it. A caller
+        // logging this itself would be tempted to pass userId (a GUID string), which
+        // AuditService.LogChangeAsync can't parse into its int RecordID column and would
+        // silently collapse to 0.
+        await _auditService.LogChangeAsync("tbl_UserStudyAccess", access.UserStudyAccessID.ToString(),
+            "Created", null, $"UserId: {userId}, StudyID: {studyId}, Role: {role}", grantedByUserId);
+    }
+
+    public async Task<List<Study>> GetManageableStudiesAsync(string userId)
+    {
+        if (await IsSystemAdminAsync(userId))
+        {
+            return await _context.Studies
+                .AsNoTracking()
+                .OrderBy(s => s.StudyCode)
+                .ToListAsync();
+        }
+
+        var managedStudyIds = await _context.UserStudyAccesses
+            .AsNoTracking()
+            .Where(a => a.AspNetUserId == userId && a.Role == "StudyAdmin")
+            .Select(a => a.StudyID)
+            .ToListAsync();
+
+        return await _context.Studies
+            .AsNoTracking()
+            .Where(s => managedStudyIds.Contains(s.StudyID))
+            .OrderBy(s => s.StudyCode)
+            .ToListAsync();
     }
 
     private static StudyRole MapRole(string? role) => role switch
