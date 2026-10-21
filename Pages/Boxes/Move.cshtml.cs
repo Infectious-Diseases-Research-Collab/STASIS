@@ -1,5 +1,4 @@
 using System.Security.Claims;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.Rendering;
@@ -9,16 +8,17 @@ using STASIS.Services;
 
 namespace STASIS.Pages.Boxes
 {
-    [Authorize(Roles = "Write,Admin")]
     public class MoveModel : PageModel
     {
         private readonly ISampleService _sampleService;
         private readonly IStorageService _storageService;
+        private readonly IStudyAccessService _studyAccessService;
 
-        public MoveModel(ISampleService sampleService, IStorageService storageService)
+        public MoveModel(ISampleService sampleService, IStorageService storageService, IStudyAccessService studyAccessService)
         {
             _sampleService = sampleService;
             _storageService = storageService;
+            _studyAccessService = studyAccessService;
         }
 
         [BindProperty(SupportsGet = true)]
@@ -57,19 +57,41 @@ namespace STASIS.Pages.Boxes
                 else if (matches.Count > 1)
                     AmbiguousSpecimens = matches;
             }
-            await LoadBoxOptionsAsync();
+
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
+            await LoadBoxOptionsAsync(userId);
         }
 
         public async Task<IActionResult> OnPostMoveAsync()
         {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
+
             if (SpecimenId == null)
             {
                 ModelState.AddModelError(string.Empty, "No specimen selected.");
-                await LoadBoxOptionsAsync();
+                await LoadBoxOptionsAsync(userId);
                 return Page();
             }
 
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
+            var specimen = await _sampleService.GetSpecimenDetailAsync(SpecimenId.Value);
+            if (specimen == null)
+            {
+                ModelState.AddModelError(string.Empty, "Specimen not found.");
+                await LoadBoxOptionsAsync(userId);
+                return Page();
+            }
+
+            // Re-validate CanEditAsync against the specimen's current StudyID before calling
+            // into IStorageService -- this is the access check; the box/study-mixing check
+            // itself is already enforced inside MoveSpecimenAsync via
+            // ValidateAndAssignBoxStudyAsync.
+            if (!await _studyAccessService.CanEditAsync(userId, specimen.StudyID))
+            {
+                ModelState.AddModelError(string.Empty, "You do not have permission to move specimens in this study.");
+                FoundSpecimen = specimen;
+                await LoadBoxOptionsAsync(userId);
+                return Page();
+            }
 
             if (MoveToTemp)
             {
@@ -85,9 +107,8 @@ namespace STASIS.Pages.Boxes
             catch (DbUpdateException)
             {
                 ModelState.AddModelError(string.Empty, "That position is already occupied.");
-                if (SpecimenId.HasValue)
-                    FoundSpecimen = await _sampleService.GetSpecimenDetailAsync(SpecimenId.Value);
-                await LoadBoxOptionsAsync();
+                FoundSpecimen = specimen;
+                await LoadBoxOptionsAsync(userId);
                 return Page();
             }
 
@@ -95,30 +116,27 @@ namespace STASIS.Pages.Boxes
             return RedirectToPage();
         }
 
-        private async Task LoadBoxOptionsAsync()
+        // Box dropdown: filtered via the caller's own GetVisibleStudyIdsAsync set (not a
+        // separately-built "editable only" set -- there's no bulk editable-study-ids method on
+        // IStudyAccessService; see Pages/Samples/Add.cshtml.cs/Import.cshtml.cs for the
+        // established per-study-CanEditAsync-loop pattern used where that distinction matters).
+        // This list is a UX convenience, not the security boundary: the real edit gate is the
+        // CanEditAsync check in OnPostMoveAsync against the specimen's own study, and
+        // ValidateAndAssignBoxStudyAsync (inside MoveSpecimenAsync) independently enforces that a
+        // box never mixes studies. Replaces the previous unfiltered manual
+        // freezer/compartment/rack/box nested loop with Task 10's filtered
+        // IStorageService.GetAllBoxesAsync.
+        private async Task LoadBoxOptionsAsync(string userId)
         {
-            var freezers = await _storageService.GetAllFreezers();
-            var allBoxes = new List<Box>();
-            foreach (var f in freezers)
-            {
-                var compartments = await _storageService.GetCompartmentsByFreezer(f.FreezerID);
-                foreach (var c in compartments)
-                {
-                    c.Freezer = f;
-                    var racks = await _storageService.GetRacksByCompartment(c.CompartmentID);
-                    foreach (var r in racks)
-                    {
-                        r.Compartment = c;
-                        var boxes = await _storageService.GetBoxesByRack(r.RackID);
-                        foreach (var b in boxes) { b.Rack = r; }
-                        allBoxes.AddRange(boxes);
-                    }
-                }
-            }
+            var isSystemAdmin = await _studyAccessService.IsSystemAdminAsync(userId);
+            var visibleStudyIds = isSystemAdmin ? null : await _studyAccessService.GetVisibleStudyIdsAsync(userId);
+            var allBoxes = await _storageService.GetAllBoxesAsync(visibleStudyIds);
             BoxOptions = new SelectList(
-                allBoxes.OrderBy(b => b.BoxLabel).Select(b => new {
+                allBoxes.Select(b => new {
                     b.BoxID,
-                    Display = $"{b.BoxLabel} ({b.Rack?.Compartment?.Freezer?.FreezerName} > {b.Rack?.Compartment?.CompartmentName} > {b.Rack?.RackName})"
+                    Display = b.Rack != null
+                        ? $"{b.BoxLabel} ({b.Rack.Compartment?.Freezer?.FreezerName} > {b.Rack.Compartment?.CompartmentName} > {b.Rack.RackName})"
+                        : $"{b.BoxLabel} (unassigned)"
                 }), "BoxID", "Display");
         }
     }

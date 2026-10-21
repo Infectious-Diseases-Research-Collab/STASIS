@@ -1,5 +1,4 @@
 using System.Security.Claims;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using STASIS.Models;
@@ -7,14 +6,15 @@ using STASIS.Services;
 
 namespace STASIS.Pages.Samples
 {
-    [Authorize(Roles = "Write,Admin")]
     public class DiscardModel : PageModel
     {
         private readonly ISampleService _sampleService;
+        private readonly IStudyAccessService _studyAccessService;
 
-        public DiscardModel(ISampleService sampleService)
+        public DiscardModel(ISampleService sampleService, IStudyAccessService studyAccessService)
         {
             _sampleService = sampleService;
+            _studyAccessService = studyAccessService;
         }
 
         [BindProperty]
@@ -81,7 +81,10 @@ namespace STASIS.Pages.Samples
                 .Distinct()
                 .ToList();
 
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
+
             var specimenIds = new List<int>();
+            var skippedBarcodes = new List<string>();
             foreach (var barcode in barcodeList)
             {
                 var matches = await _sampleService.GetSpecimensByBarcode(barcode);
@@ -91,7 +94,17 @@ namespace STASIS.Pages.Samples
                         specimen.Status != "Shipped" &&
                         specimen.DiscardApprovalID == null)
                     {
-                        specimenIds.Add(specimen.SpecimenID);
+                        // Per-specimen skip (not a whole-request reject): a mixed batch of
+                        // editable and non-editable-study barcodes discards only the ones the
+                        // caller can edit, mirroring the per-row skip pattern in Samples/Import.
+                        if (await _studyAccessService.CanEditAsync(userId, specimen.StudyID))
+                        {
+                            specimenIds.Add(specimen.SpecimenID);
+                        }
+                        else
+                        {
+                            skippedBarcodes.Add($"{barcode} ({specimen.Study?.StudyCode}) — no edit access to this study");
+                        }
                     }
                 }
             }
@@ -102,10 +115,14 @@ namespace STASIS.Pages.Samples
                 return Page();
             }
 
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
             CreatedApproval = await _sampleService.RequestDiscardAsync(specimenIds, userId);
 
-            TempData["Success"] = $"Discard request created (Approval #{CreatedApproval.ApprovalID}) for {specimenIds.Count} specimen(s). Awaiting ED, Regulatory, and PI approval.";
+            var message = $"Discard request created (Approval #{CreatedApproval.ApprovalID}) for {specimenIds.Count} specimen(s). Awaiting ED, Regulatory, and PI approval.";
+            if (skippedBarcodes.Count > 0)
+            {
+                message += $" Skipped {skippedBarcodes.Count} specimen(s) you do not have edit access to: {string.Join(", ", skippedBarcodes)}";
+            }
+            TempData["Success"] = message;
             return Page();
         }
     }
