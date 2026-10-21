@@ -90,6 +90,20 @@ public class StudyAccessService : IStudyAccessService
             .ToListAsync();
     }
 
+    public async Task GrantAccessAsync(string userId, int studyId, string role, string grantedByUserId)
+    {
+        _context.UserStudyAccesses.Add(new UserStudyAccess
+        {
+            AspNetUserId = userId,
+            StudyID = studyId,
+            Role = role,
+            GrantedByUserId = grantedByUserId,
+            GrantedDate = DateTime.UtcNow
+        });
+
+        await _context.SaveChangesAsync();
+    }
+
     private static StudyRole MapRole(string? role) => role switch
     {
         "Viewer" => StudyRole.Viewer,

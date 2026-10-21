@@ -10,7 +10,7 @@
     <div class="col-md-6">
         <form method="post">
             <div asp-validation-summary="All" class="text-danger"></div>
-            
+
             <div class="form-group mb-3">
                 <label asp-for="Input.Email" class="form-label"></label>
                 <input asp-for="Input.Email" class="form-control" />
@@ -30,12 +30,29 @@
                 <span asp-validation-for="Input.Department" class="text-danger"></span>
             </div>
 
+            @if (Model.CallerIsSystemAdmin)
+            {
+                <div class="form-group mb-3 form-check">
+                    <input asp-for="Input.IsSystemAdmin" class="form-check-input" />
+                    <label asp-for="Input.IsSystemAdmin" class="form-check-label">System Admin</label>
+                    <span asp-validation-for="Input.IsSystemAdmin" class="text-danger"></span>
+                </div>
+            }
+
             <div class="form-group mb-3">
-                <label asp-for="Input.Role" class="form-label">Role</label>
-                <select asp-for="Input.Role" asp-items="Model.Roles" class="form-select">
+                <label asp-for="Input.StudyID" class="form-label">Assign to Study</label>
+                <select asp-for="Input.StudyID" asp-items="Model.Studies" class="form-select">
+                    <option value="">No study assignment</option>
+                </select>
+                <span asp-validation-for="Input.StudyID" class="text-danger"></span>
+            </div>
+
+            <div class="form-group mb-3">
+                <label asp-for="Input.StudyRole" class="form-label">Study Role</label>
+                <select asp-for="Input.StudyRole" asp-items="Model.StudyRoles" class="form-select">
                     <option value="">Select a Role</option>
                 </select>
-                <span asp-validation-for="Input.Role" class="text-danger"></span>
+                <span asp-validation-for="Input.StudyRole" class="text-danger"></span>
             </div>
 
             <button type="submit" class="btn btn-primary">Create User</button>

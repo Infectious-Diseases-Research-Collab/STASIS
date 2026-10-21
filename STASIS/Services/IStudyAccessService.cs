@@ -15,4 +15,10 @@ public interface IStudyAccessService
     // Lets page models (e.g. Administration/Users) build per-user study-access lists without
     // calling StasisDbContext directly, per this codebase's "services only" data-access rule.
     Task<List<UserStudyAccess>> GetAllAccessRowsAsync();
+
+    // Grants a user a role on a study by inserting a new UserStudyAccess row. Lets page models
+    // (e.g. Administration/CreateUser) write access grants without calling
+    // StasisDbContext directly, per this codebase's "services only" data-access rule. Callers
+    // are responsible for authorizing the grant (e.g. CanManageStudyAsync) before calling this.
+    Task GrantAccessAsync(string userId, int studyId, string role, string grantedByUserId);
 }
