@@ -29,4 +29,13 @@ public interface IStorageService
     Task MoveToTempAsync(int specimenId, string userId);
     Task CheckAndUnassignEmptyBoxAsync(int boxId);
     Task<Box> CreateBoxAsync(string label, string boxType, int? rackId, string userId);
+
+    // Write-path integrity check (not a read-side visibility filter -- see ApplyStudyVisibility
+    // for that). Enforces that a single physical box never holds specimens from more than one
+    // study. Throws InvalidOperationException if the box's current StudyID is non-null and
+    // differs from studyId. If the box's StudyID is null, claims the box for studyId by setting
+    // StudyID on the tracked entity -- WITHOUT calling SaveChangesAsync; the caller's own save
+    // (as part of the same unit of work, e.g. moving/reboxing a specimen) persists it. No-op if
+    // the box already matches studyId.
+    Task ValidateAndAssignBoxStudyAsync(int boxId, int studyId);
 }

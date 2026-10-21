@@ -131,6 +131,12 @@ public class StorageService : IStorageService
             .FirstOrDefaultAsync(s => s.SpecimenID == specimenId);
         if (specimen == null) return;
 
+        // Validate (and, if the box is unclaimed, assign) the destination box's study
+        // affiliation before mutating the specimen's own fields, so a mismatch throws before
+        // anything changes and the subsequent SaveChangesAsync below persists the assignment
+        // (if any) as part of the same unit of work as the move.
+        await ValidateAndAssignBoxStudyAsync(newBoxId, specimen.StudyID);
+
         var oldBoxId = specimen.BoxID;
         var oldRow = specimen.PositionRow;
         var oldCol = specimen.PositionCol;
@@ -172,6 +178,12 @@ public class StorageService : IStorageService
         {
             var specimen = await _context.Specimens.FindAsync(specimenId);
             if (specimen == null) continue;
+
+            // Validate every specimen's study against the destination box before setting any
+            // field, so a mismatch anywhere in the batch throws -- and aborts the whole method
+            // before the single SaveChangesAsync below -- rather than partially writing the
+            // batch.
+            await ValidateAndAssignBoxStudyAsync(newBoxId, specimen.StudyID);
 
             if (specimen.BoxID.HasValue)
                 oldBoxIds.Add(specimen.BoxID.Value);
@@ -237,11 +249,37 @@ public class StorageService : IStorageService
             .Include(b => b.Specimens)
             .FirstOrDefaultAsync(b => b.BoxID == boxId);
 
-        if (box != null && box.Specimens.Count == 0 && box.RackID != null
-            && box.BoxCategory == "Standard")
+        if (box == null || box.Specimens.Count != 0)
+            return;
+
+        if (box.RackID != null && box.BoxCategory == "Standard")
         {
             box.RackID = null;
-            await _context.SaveChangesAsync();
+        }
+
+        // Unlike the RackID clearing above, this is deliberately NOT scoped to "Standard": a
+        // Temp/Trash/Shipping box with zero specimens has no study affiliation to keep either,
+        // so it must become claimable by the next study to use it regardless of category.
+        box.StudyID = null;
+
+        await _context.SaveChangesAsync();
+    }
+
+    public async Task ValidateAndAssignBoxStudyAsync(int boxId, int studyId)
+    {
+        var box = await _context.Boxes.FindAsync(boxId);
+        if (box == null)
+            return;
+
+        if (box.StudyID.HasValue && box.StudyID.Value != studyId)
+        {
+            throw new InvalidOperationException(
+                $"Box {boxId} is already assigned to study {box.StudyID.Value} and cannot also hold specimens from study {studyId}.");
+        }
+
+        if (!box.StudyID.HasValue)
+        {
+            box.StudyID = studyId;
         }
     }
 }
