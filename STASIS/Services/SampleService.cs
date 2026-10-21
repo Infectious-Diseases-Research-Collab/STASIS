@@ -9,11 +9,13 @@ public class SampleService : ISampleService
 {
     private readonly StasisDbContext _context;
     private readonly IAuditService _auditService;
+    private readonly IStorageService _storageService;
 
-    public SampleService(StasisDbContext context, IAuditService auditService)
+    public SampleService(StasisDbContext context, IAuditService auditService, IStorageService storageService)
     {
         _context = context;
         _auditService = auditService;
+        _storageService = storageService;
     }
 
     public async Task<(List<Specimen> Specimens, int TotalCount)> GetSpecimensAsync(string? searchString, int? studyId, int? sampleTypeId, string? participantId, int pageIndex, int pageSize, IReadOnlyCollection<int>? visibleStudyIds)
@@ -149,6 +151,15 @@ public class SampleService : ISampleService
         {
             foreach (var specimen in specimenList)
             {
+                // Validate (and, if the box is unclaimed, assign) the box's study affiliation
+                // before adding the specimen, so a mismatch throws before anything is written --
+                // the bare `catch` below rolls back the whole transaction either way, including
+                // this InvalidOperationException, mirroring StorageService.MoveSpecimenAsync/
+                // ReboxSpecimensAsync.
+                if (specimen.BoxID.HasValue)
+                {
+                    await _storageService.ValidateAndAssignBoxStudyAsync(specimen.BoxID.Value, specimen.StudyID);
+                }
                 _context.Specimens.Add(specimen);
             }
             await _context.SaveChangesAsync();

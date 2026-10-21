@@ -1,6 +1,5 @@
 using System.ComponentModel.DataAnnotations;
 using System.Security.Claims;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.Rendering;
@@ -10,16 +9,17 @@ using STASIS.Services;
 
 namespace STASIS.Pages.Samples
 {
-    [Authorize(Roles = "Write,Admin")]
     public class AddModel : PageModel
     {
         private readonly ISampleService _sampleService;
         private readonly IStorageService _storageService;
+        private readonly IStudyAccessService _studyAccessService;
 
-        public AddModel(ISampleService sampleService, IStorageService storageService)
+        public AddModel(ISampleService sampleService, IStorageService storageService, IStudyAccessService studyAccessService)
         {
             _sampleService = sampleService;
             _storageService = storageService;
+            _studyAccessService = studyAccessService;
         }
 
         [BindProperty]
@@ -75,17 +75,43 @@ namespace STASIS.Pages.Samples
             public int? RemainingSpots { get; set; }
         }
 
-        public async Task OnGetAsync()
+        public async Task<IActionResult> OnGetAsync()
         {
-            await LoadDropdownsAsync();
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
+
+            // No studies to add to at all -- distinct from "some studies, but only as a Viewer",
+            // which still gets the page (just an empty Study dropdown filtered down below).
+            var isSystemAdmin = await _studyAccessService.IsSystemAdminAsync(userId);
+            if (!isSystemAdmin)
+            {
+                var visibleStudyIds = await _studyAccessService.GetVisibleStudyIdsAsync(userId);
+                if (visibleStudyIds != null && visibleStudyIds.Count == 0)
+                {
+                    return Forbid();
+                }
+            }
+
+            await LoadDropdownsAsync(userId, isSystemAdmin);
+            return Page();
         }
 
         public async Task<IActionResult> OnPostAsync()
         {
-            await LoadDropdownsAsync();
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
+            var isSystemAdmin = await _studyAccessService.IsSystemAdminAsync(userId);
+
+            await LoadDropdownsAsync(userId, isSystemAdmin);
 
             if (!ModelState.IsValid)
             {
+                return Page();
+            }
+
+            // Re-validate the posted StudyID server-side -- the Study dropdown only offers
+            // editable studies, but a caller can post any StudyID directly, so don't trust it.
+            if (!await _studyAccessService.CanEditAsync(userId, StudyID!.Value))
+            {
+                ModelState.AddModelError(string.Empty, "You do not have permission to add samples to this study.");
                 return Page();
             }
 
@@ -177,8 +203,6 @@ namespace STASIS.Pages.Samples
                 return Page();
             }
 
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
-
             var specimens = activeSamples.Select(s => new Specimen
             {
                 BarcodeID = s.BarcodeID!,
@@ -206,6 +230,14 @@ namespace STASIS.Pages.Samples
             {
                 ModelState.AddModelError(string.Empty,
                     "A conflict occurred (duplicate barcode or box position already taken). No samples were saved.");
+                return Page();
+            }
+            catch (InvalidOperationException ex)
+            {
+                // Thrown by IStorageService.ValidateAndAssignBoxStudyAsync (via AddSpecimensBatch)
+                // when a targeted box already holds a different study's specimens. The batch's
+                // own transaction has already rolled back -- no samples were saved.
+                ModelState.AddModelError(string.Empty, ex.Message);
                 return Page();
             }
 
@@ -256,14 +288,27 @@ namespace STASIS.Pages.Samples
             return new JsonResult(positions.Select(p => new { row = p.Row, col = p.Col }));
         }
 
-        private async Task LoadDropdownsAsync()
+        private async Task LoadDropdownsAsync(string userId, bool isSystemAdmin)
         {
-            // This page's own study-scoping (restricting the Study dropdown, and the Visit
-            // Type/Box dropdowns once a study is selected, to the caller's visible studies) is
-            // deferred to a later task -- see STASIS_Deferred_Items.md item 9. Passing null here
-            // is the intentional, explicit "unfiltered for now" call, not an accidental default.
-            var studies = await _sampleService.GetAllStudies(null);
-            StudyOptions = new SelectList(studies, "StudyID", "StudyCode");
+            // Study dropdown: restricted to studies this caller can actually Edit (Editor,
+            // StudyAdmin, or System Admin) -- not merely View -- since this page only ever
+            // creates new specimens. There's no bulk "editable study ids" method on
+            // IStudyAccessService, so this resolves the caller's visible studies first (narrowing
+            // the DB query / per-study checks to just those) and then filters with CanEditAsync
+            // per study. The Visit Type/Box dropdowns remain unfiltered by study -- see
+            // STASIS_Deferred_Items.md item 9 (separate, still-deferred concern).
+            var visibleStudyIds = isSystemAdmin ? null : await _studyAccessService.GetVisibleStudyIdsAsync(userId);
+            var candidateStudies = await _sampleService.GetAllStudies(visibleStudyIds);
+
+            var editableStudies = new List<Study>();
+            foreach (var study in candidateStudies)
+            {
+                if (isSystemAdmin || await _studyAccessService.CanEditAsync(userId, study.StudyID))
+                {
+                    editableStudies.Add(study);
+                }
+            }
+            StudyOptions = new SelectList(editableStudies, "StudyID", "StudyCode");
 
             var visitTypes = await _sampleService.GetAllVisitTypes();
             VisitTypeOptions = new SelectList(visitTypes, "VisitTypeID", "VisitTypeName");

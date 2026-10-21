@@ -17,6 +17,10 @@ public interface ISampleService
     Task AddSpecimen(Specimen specimen);
     Task<List<VisitType>> GetAllVisitTypes();
     Task<(int Row, int? Col)?> GetNextAvailablePosition(int boxId, IEnumerable<(int Row, int? Col)>? claimedPositions = null);
+    // For each specimen with a BoxID, validates (and, if the box is unclaimed, assigns) the
+    // box's study affiliation via IStorageService.ValidateAndAssignBoxStudyAsync before writing
+    // it -- a box already holding a different study's specimens throws InvalidOperationException,
+    // which rolls back the whole batch (same transaction as the rest of this method).
     Task AddSpecimensBatch(IEnumerable<Specimen> specimens, string userId);
     Task AddVisitType(string name, string userId);
     Task UpdateVisitType(int id, string name, string userId);
