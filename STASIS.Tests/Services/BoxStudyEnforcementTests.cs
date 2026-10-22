@@ -157,6 +157,28 @@ public class BoxStudyEnforcementTests
         Assert.Equal(studyA.StudyID, reloadedBox.StudyID);
     }
 
+    // --- MoveToTempAsync ---
+
+    [Fact]
+    public async Task MoveToTempAsync_MovesSpecimenIntoTempBox_AndClaimsTempBoxForItsStudy()
+    {
+        var context = TestDbContextFactory.Create();
+        var service = CreateService(context);
+
+        var studyA = await AddStudyAsync(context, "MTT-STUDY-A");
+        var sourceBox = await AddBoxAsync(context, "MTT-SOURCE", studyA.StudyID, "Standard");
+        var tempBox = await AddBoxAsync(context, "MTT-TEMP", null, "Temp");
+        var specimen = await AddSpecimenAsync(context, "MTT-S1", studyA.StudyID, sourceBox.BoxID, 0, 0);
+
+        await service.MoveToTempAsync(specimen.SpecimenID, "test-user");
+
+        var reloadedTemp = await context.Boxes.AsNoTracking().SingleAsync(b => b.BoxID == tempBox.BoxID);
+        var reloadedSpecimen = await context.Specimens.AsNoTracking().SingleAsync(s => s.SpecimenID == specimen.SpecimenID);
+
+        Assert.Equal(studyA.StudyID, reloadedTemp.StudyID);
+        Assert.Equal(tempBox.BoxID, reloadedSpecimen.BoxID);
+    }
+
     // --- ReboxSpecimensAsync ---
 
     [Fact]

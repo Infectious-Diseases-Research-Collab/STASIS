@@ -222,6 +222,8 @@ public class StorageService : IStorageService
             .FirstOrDefaultAsync(b => b.BoxCategory == "Temp");
         if (tempBox == null) return;
 
+        await ValidateAndAssignBoxStudyAsync(tempBox.BoxID, specimen.StudyID);
+
         var oldBoxId = specimen.BoxID;
         specimen.BoxID = tempBox.BoxID;
         specimen.PositionRow = null;
