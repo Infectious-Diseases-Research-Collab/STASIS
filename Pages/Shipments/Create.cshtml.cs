@@ -7,7 +7,7 @@ using STASIS.Services;
 
 namespace STASIS.Pages.Shipments
 {
-    [Authorize(Roles = "Write,Admin")]
+    [Authorize(Roles = "Admin")]
     public class CreateModel : PageModel
     {
         private readonly IShipmentService _shipmentService;

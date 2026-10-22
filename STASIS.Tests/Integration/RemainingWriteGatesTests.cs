@@ -146,6 +146,28 @@ public class RemainingWriteGatesTests : IClassFixture<TestWebApplicationFactory>
         };
     }
 
+    private static PlaceModel BuildPlaceModel(IServiceProvider services, string callerUserId)
+    {
+        var storageService = services.GetRequiredService<IStorageService>();
+        var sampleService = services.GetRequiredService<ISampleService>();
+        var studyAccessService = services.GetRequiredService<IStudyAccessService>();
+
+        return new PlaceModel(storageService, sampleService, studyAccessService)
+        {
+            PageContext = new PageContext
+            {
+                HttpContext = new DefaultHttpContext
+                {
+                    RequestServices = services,
+                    User = BuildPrincipal(callerUserId)
+                }
+            },
+            TempData = new TempDataDictionary(
+                new DefaultHttpContext { RequestServices = services },
+                services.GetRequiredService<ITempDataProvider>())
+        };
+    }
+
     private static async Task<IdentityUser> CreateSystemAdminAsync(IServiceProvider services, string email)
     {
         var userManager = services.GetRequiredService<UserManager<IdentityUser>>();
@@ -748,5 +770,83 @@ public class RemainingWriteGatesTests : IClassFixture<TestWebApplicationFactory>
 
         var reloaded = await context.Specimens.AsNoTracking().SingleAsync(s => s.SpecimenID == specimen.SpecimenID);
         Assert.Null(reloaded.BoxID);
+    }
+
+    // ---------------------------------------------------------------------
+    // Whole-branch review follow-up: Boxes/Place still carried the retired global
+    // [Authorize(Roles = "Write,Admin")] attribute, which (since the "Write" Identity role is no
+    // longer seeded/assignable) silently collapsed to System-Admin-only. Replaced with the same
+    // "editor anywhere" gate Boxes/Create uses -- mirrors Create_OnPostAsync's equivalent test.
+    // ---------------------------------------------------------------------
+
+    [Fact]
+    public async Task Place_OnPostAsync_CallerWithNoEditorAccessAnywhere_ReturnsForbid_BoxNotMoved()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var services = scope.ServiceProvider;
+        var context = services.GetRequiredService<StasisDbContext>();
+
+        var sysAdmin = await CreateSystemAdminAsync(services, "sysadmin-rwg17@test.com");
+
+        var study = new Study { StudyCode = "RWG-P-VIEWONLY" };
+        context.Studies.Add(study);
+        await context.SaveChangesAsync();
+
+        // Caller has Viewer access only -- no Editor access to any study.
+        var caller = await CreateUserAsync(services, "viewer-rwg17@test.com");
+        await GrantAsync(context, caller.Id, study.StudyID, "Viewer", sysAdmin.Id);
+
+        var box = await AddBoxAsync(context, "RWG-P-BOX1", null);
+
+        var model = BuildPlaceModel(services, caller.Id);
+        model.BoxId = box.BoxID;
+        model.NewRackId = 999;
+
+        var result = await model.OnPostAsync();
+
+        Assert.IsType<ForbidResult>(result);
+
+        var reloaded = await context.Boxes.AsNoTracking().SingleAsync(b => b.BoxID == box.BoxID);
+        Assert.Null(reloaded.RackID);
+    }
+
+    [Fact]
+    public async Task Place_OnPostAsync_CallerIsEditorOnAtLeastOneStudy_MovesBox()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var services = scope.ServiceProvider;
+        var context = services.GetRequiredService<StasisDbContext>();
+
+        var sysAdmin = await CreateSystemAdminAsync(services, "sysadmin-rwg18@test.com");
+
+        var study = new Study { StudyCode = "RWG-P-EDIT" };
+        context.Studies.Add(study);
+        await context.SaveChangesAsync();
+
+        var caller = await CreateUserAsync(services, "editor-rwg18@test.com");
+        await GrantAsync(context, caller.Id, study.StudyID, "Editor", sysAdmin.Id);
+
+        var box = await AddBoxAsync(context, "RWG-P-BOX2", null);
+
+        var freezer = new Freezer { FreezerName = "RWG-P-FREEZER" };
+        context.Freezers.Add(freezer);
+        await context.SaveChangesAsync();
+        var compartment = new Compartment { CompartmentName = "RWG-P-COMPARTMENT", FreezerID = freezer.FreezerID };
+        context.Compartments.Add(compartment);
+        await context.SaveChangesAsync();
+        var rack = new Rack { RackName = "RWG-P-RACK", CompartmentID = compartment.CompartmentID };
+        context.Racks.Add(rack);
+        await context.SaveChangesAsync();
+
+        var model = BuildPlaceModel(services, caller.Id);
+        model.BoxId = box.BoxID;
+        model.NewRackId = rack.RackID;
+
+        var result = await model.OnPostAsync();
+
+        Assert.IsType<RedirectToPageResult>(result);
+
+        var reloaded = await context.Boxes.AsNoTracking().SingleAsync(b => b.BoxID == box.BoxID);
+        Assert.Equal(rack.RackID, reloaded.RackID);
     }
 }

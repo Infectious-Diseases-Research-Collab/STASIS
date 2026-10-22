@@ -1,5 +1,4 @@
 using System.Security.Claims;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.Rendering;
@@ -8,14 +7,17 @@ using STASIS.Services;
 
 namespace STASIS.Pages.Boxes
 {
-    [Authorize(Roles = "Write,Admin")]
     public class PlaceModel : PageModel
     {
         private readonly IStorageService _storageService;
+        private readonly ISampleService _sampleService;
+        private readonly IStudyAccessService _studyAccessService;
 
-        public PlaceModel(IStorageService storageService)
+        public PlaceModel(IStorageService storageService, ISampleService sampleService, IStudyAccessService studyAccessService)
         {
             _storageService = storageService;
+            _sampleService = sampleService;
+            _studyAccessService = studyAccessService;
         }
 
         [BindProperty(SupportsGet = true)]
@@ -47,6 +49,12 @@ namespace STASIS.Pages.Boxes
         public async Task<IActionResult> OnPostAsync()
         {
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
+
+            if (!await IsEditorAnywhereAsync(userId))
+            {
+                return Forbid();
+            }
+
             await _storageService.MoveBoxAsync(BoxId, NewRackId, userId);
             TempData["Success"] = "Box moved successfully.";
             return RedirectToPage();
@@ -54,12 +62,24 @@ namespace STASIS.Pages.Boxes
 
         public async Task<IActionResult> OnGetCompartmentsAsync(int freezerId)
         {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
+            if (!await IsEditorAnywhereAsync(userId))
+            {
+                return Forbid();
+            }
+
             var compartments = await _storageService.GetCompartmentsByFreezer(freezerId);
             return new JsonResult(compartments.Select(c => new { c.CompartmentID, c.CompartmentName }));
         }
 
         public async Task<IActionResult> OnGetRacksAsync(int compartmentId)
         {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
+            if (!await IsEditorAnywhereAsync(userId))
+            {
+                return Forbid();
+            }
+
             var racks = await _storageService.GetRacksByCompartment(compartmentId);
             return new JsonResult(racks.Select(r => new { r.RackID, r.RackName }));
         }
@@ -68,6 +88,32 @@ namespace STASIS.Pages.Boxes
         {
             var freezers = await _storageService.GetAllFreezers();
             FreezerOptions = new SelectList(freezers, "FreezerID", "FreezerName");
+        }
+
+        // Box relocation isn't tied to a specific study, so this is an "is this person an Editor
+        // anywhere" check, not a per-study one -- mirrors Pages/Boxes/Create.cshtml.cs's
+        // IsEditorAnywhereAsync exactly (there's no bulk "editable study ids" method on
+        // IStudyAccessService, so this resolves the caller's own visible studies first and then
+        // checks CanEditAsync per study, short-circuiting on the first match).
+        private async Task<bool> IsEditorAnywhereAsync(string userId)
+        {
+            if (await _studyAccessService.IsSystemAdminAsync(userId))
+            {
+                return true;
+            }
+
+            var visibleStudyIds = await _studyAccessService.GetVisibleStudyIdsAsync(userId);
+            var candidateStudies = await _sampleService.GetAllStudies(visibleStudyIds);
+
+            foreach (var study in candidateStudies)
+            {
+                if (await _studyAccessService.CanEditAsync(userId, study.StudyID))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
     }
 }
