@@ -114,7 +114,21 @@ namespace STASIS.Pages.Boxes
 
             if (MoveToTemp)
             {
-                await _storageService.MoveToTempAsync(SpecimenId.Value, userId);
+                try
+                {
+                    await _storageService.MoveToTempAsync(SpecimenId.Value, userId);
+                }
+                catch (InvalidOperationException ex)
+                {
+                    // Thrown by IStorageService.ValidateAndAssignBoxStudyAsync (via
+                    // MoveToTempAsync) when the shared Temp box already holds a different
+                    // study's specimens -- same pattern as the MoveSpecimenAsync catch below.
+                    ModelState.AddModelError(string.Empty, ex.Message);
+                    FoundSpecimen = specimen;
+                    await LoadBoxOptionsAsync(userId);
+                    return Page();
+                }
+
                 TempData["Success"] = "Specimen moved to temporary storage.";
                 return RedirectToPage();
             }
