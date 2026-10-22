@@ -319,6 +319,16 @@
             }
 
             // Repopulate box dropdown with only compatible boxes
+            repopulateBoxSelect(card, typeName);
+        }
+
+        // Rebuilds one card's box dropdown from the current allBoxes array, filtered to the
+        // card's own sample type (Filter Paper Binder vs. everything else). Shared by
+        // updateConditional (sample-type change) and refreshBoxesForStudy (study change) --
+        // the latter must NOT call updateConditional directly, since that rebuilds the
+        // conditional-fields wrapper (Aliquot/Cell Count/Remaining Spots) from scratch and would
+        // wipe out anything already entered there.
+        function repopulateBoxSelect(card, typeName) {
             const isFP = typeName.includes('filter paper');
             const boxSelect = card.querySelector('.box-select');
             const currentBoxId = boxSelect.value;
@@ -341,6 +351,30 @@
             if (!currentStillValid && currentBoxId) {
                 onBoxChange(boxSelect);
             }
+        }
+
+        // Refetches the box list scoped to the newly selected study and repopulates every
+        // existing card's box dropdown (still respecting each card's own sample-type filter).
+        // A box a card had selected that's no longer in the new study's list reverts to
+        // "— No box —" via repopulateBoxSelect's existing currentStillValid check.
+        async function refreshBoxesForStudy(studyId) {
+            allBoxes.length = 0;
+            if (studyId) {
+                try {
+                    const resp = await fetch(`?handler=BoxesForStudy&studyId=${encodeURIComponent(studyId)}`);
+                    if (resp.ok) {
+                        const data = await resp.json();
+                        data.forEach(b => allBoxes.push(b));
+                    }
+                } catch {
+                    // Leave allBoxes empty on error -- same fail-safe as the other AJAX handlers
+                    // on this page.
+                }
+            }
+            document.querySelectorAll('.sample-card').forEach(card => {
+                const typeName = typeNames[card.querySelector('.type-select')?.value] || '';
+                repopulateBoxSelect(card, typeName);
+            });
         }
 
         function getCardIndex(card) {
@@ -400,7 +434,8 @@
 
         let barcodeTimers = {};
 
-        // Re-validate all barcodes when the study changes (uniqueness is per study)
+        // Re-validate all barcodes when the study changes (uniqueness is per study), and
+        // refresh the box list to the newly selected study.
         document.getElementById('studySelect')?.addEventListener('change', function () {
             document.querySelectorAll('.barcode-input').forEach(input => {
                 if (input.value.trim()) {
@@ -408,6 +443,7 @@
                     barcodeTimers[input.name] = setTimeout(() => validateBarcode(input), 100);
                 }
             });
+            refreshBoxesForStudy(this.value);
         });
         document.addEventListener('input', function (e) {
             if (!e.target.classList.contains('barcode-input')) return;

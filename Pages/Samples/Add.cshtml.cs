@@ -91,7 +91,7 @@ namespace STASIS.Pages.Samples
                 }
             }
 
-            await LoadDropdownsAsync(userId, isSystemAdmin);
+            await LoadDropdownsAsync(userId, isSystemAdmin, StudyID);
             return Page();
         }
 
@@ -100,7 +100,7 @@ namespace STASIS.Pages.Samples
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
             var isSystemAdmin = await _studyAccessService.IsSystemAdminAsync(userId);
 
-            await LoadDropdownsAsync(userId, isSystemAdmin);
+            await LoadDropdownsAsync(userId, isSystemAdmin, StudyID);
 
             if (!ModelState.IsValid)
             {
@@ -268,6 +268,28 @@ namespace STASIS.Pages.Samples
             return new JsonResult(new { taken });
         }
 
+        public async Task<IActionResult> OnGetBoxesForStudyAsync(int studyId)
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
+
+            // Don't trust the posted studyId -- re-check CanEditAsync the same way every other
+            // handler on this page does, and return an empty list rather than leak box
+            // labels/locations for a study the caller can't edit.
+            if (!await _studyAccessService.CanEditAsync(userId, studyId))
+                return new JsonResult(Array.Empty<object>());
+
+            var boxes = await _storageService.GetAllBoxesAsync(new[] { studyId });
+            var result = boxes.Select(b => new
+            {
+                id = b.BoxID,
+                display = b.Rack != null
+                    ? $"{b.BoxLabel} ({b.Rack.Compartment?.Freezer?.FreezerName} › {b.Rack.Compartment?.CompartmentName} › {b.Rack.RackName})"
+                    : $"{b.BoxLabel} (unassigned)",
+                boxType = b.BoxType
+            });
+            return new JsonResult(result);
+        }
+
         public async Task<IActionResult> OnGetNextPositionAsync(int boxId, string? claimed = null)
         {
             if (boxId <= 0) return BadRequest();
@@ -352,15 +374,16 @@ namespace STASIS.Pages.Samples
             return false;
         }
 
-        private async Task LoadDropdownsAsync(string userId, bool isSystemAdmin)
+        private async Task LoadDropdownsAsync(string userId, bool isSystemAdmin, int? selectedStudyId)
         {
             // Study dropdown: restricted to studies this caller can actually Edit (Editor,
             // StudyAdmin, or System Admin) -- not merely View -- since this page only ever
             // creates new specimens. There's no bulk "editable study ids" method on
             // IStudyAccessService, so this resolves the caller's visible studies first (narrowing
             // the DB query / per-study checks to just those) and then filters with CanEditAsync
-            // per study. The Visit Type/Box dropdowns remain unfiltered by study -- see
-            // STASIS_Deferred_Items.md item 9 (separate, still-deferred concern).
+            // per study. The Visit Type dropdown remains unfiltered by study -- VisitType has no
+            // StudyID column yet, so that half of STASIS_Deferred_Items.md item 9 is still
+            // deferred (the Box half is resolved below).
             var visibleStudyIds = isSystemAdmin ? null : await _studyAccessService.GetVisibleStudyIdsAsync(userId);
             var candidateStudies = await _sampleService.GetAllStudies(visibleStudyIds);
 
@@ -380,10 +403,17 @@ namespace STASIS.Pages.Samples
             SampleTypes = await _sampleService.GetAllSampleTypes();
             SampleTypeOptions = new SelectList(SampleTypes, "SampleTypeID", "TypeName");
 
-            // Study-scoped filtering of the Box dropdown is deferred to the same later work as
-            // the Study dropdown above -- see STASIS_Deferred_Items.md item 9. Passing null here
-            // is the intentional, explicit "unfiltered for now" call, not an accidental default.
-            var allBoxes = await _storageService.GetAllBoxesAsync(null);
+            // Box dropdown is scoped to the currently selected study (or nothing, until a study
+            // is chosen) -- resolves STASIS_Deferred_Items.md item 9 for boxes. Reuses
+            // GetAllBoxesAsync's existing visibility filter: passing the one selected study as a
+            // single-element set returns boxes already claimed by that study plus genuinely
+            // unassigned ones, exactly the "relevant to this study" set we want here. An empty
+            // (non-null) set when no study is selected yet correctly returns nothing, per that
+            // filter's own "zero access = zero boxes" semantics.
+            var boxStudyFilter = selectedStudyId.HasValue
+                ? new[] { selectedStudyId.Value }
+                : Array.Empty<int>();
+            var allBoxes = await _storageService.GetAllBoxesAsync(boxStudyFilter);
             AllBoxes = allBoxes.Select(b => new BoxOption(
                 b.BoxID,
                 b.Rack != null
