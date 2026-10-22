@@ -143,6 +143,55 @@ public class BoxSearchVisibilityTests : IClassFixture<TestWebApplicationFactory>
         Assert.DoesNotContain(boxB.BoxLabel, model.AllBoxLabels);
     }
 
+    private static async Task<Specimen> AddSpecimenAsync(StasisDbContext context, string barcode, int studyId, int? boxId)
+    {
+        var specimen = new Specimen
+        {
+            BarcodeID = barcode,
+            StudyID = studyId,
+            BoxID = boxId,
+            PositionRow = 1,
+            PositionCol = 1,
+            Status = "In-Stock"
+        };
+        context.Specimens.Add(specimen);
+        await context.SaveChangesAsync();
+        return specimen;
+    }
+
+    [Fact]
+    public async Task Viewer_WithAtLeastOneStudy_DoesNotSeeUnbackfilledLegacyBoxWithSpecimens()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var services = scope.ServiceProvider;
+        var context = services.GetRequiredService<StasisDbContext>();
+
+        var sysAdmin = await CreateSystemAdminAsync(services, "sysadmin-bs6@test.com");
+
+        var studyA = new Study { StudyCode = "BS-I" };
+        context.Studies.Add(studyA);
+        await context.SaveChangesAsync();
+
+        // Simulates legacy pre-existing data: Box.StudyID was added after specimens already
+        // existed, and this box was never backfilled and never touched by a write path, so its
+        // StudyID is still null even though it already holds a specimen.
+        var legacyBox = await AddBoxAsync(context, "BS-BOX-I1", null);
+        await AddSpecimenAsync(context, "BS-SPEC-I1", studyA.StudyID, legacyBox.BoxID);
+
+        var viewer = await CreateUserAsync(services, "viewer-bs6@test.com");
+        await GrantAsync(context, viewer.Id, studyA.StudyID, "Viewer", sysAdmin.Id);
+
+        var model = BuildSearchModel(services, viewer.Id);
+        model.BoxLabel = "BS-BOX-";
+        model.SelectedBoxId = legacyBox.BoxID;
+
+        await model.OnGetAsync();
+
+        Assert.DoesNotContain(model.Boxes, b => b.BoxID == legacyBox.BoxID);
+        Assert.DoesNotContain(legacyBox.BoxLabel, model.AllBoxLabels);
+        Assert.Null(model.SelectedBox);
+    }
+
     [Fact]
     public async Task Viewer_WithAtLeastOneStudy_SeesUnassignedEmptyBox()
     {
@@ -163,11 +212,13 @@ public class BoxSearchVisibilityTests : IClassFixture<TestWebApplicationFactory>
 
         var model = BuildSearchModel(services, viewer.Id);
         model.BoxLabel = "BS-BOX-";
+        model.SelectedBoxId = unassignedBox.BoxID;
 
         await model.OnGetAsync();
 
         Assert.Contains(model.Boxes, b => b.BoxID == unassignedBox.BoxID);
         Assert.Contains(unassignedBox.BoxLabel, model.AllBoxLabels);
+        Assert.NotNull(model.SelectedBox);
     }
 
     [Fact]

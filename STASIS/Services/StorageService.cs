@@ -111,8 +111,14 @@ public class StorageService : IStorageService
     // return nothing rather than falling through to the "StudyID == null is visible" branch
     // below (which would otherwise leak every unassigned box to a zero-access caller). A
     // non-null, non-empty collection filters to boxes in one of those studies, plus any box not
-    // yet claimed by a study (StudyID == null) -- unassigned boxes must stay discoverable to
-    // anyone with at least one study assignment, or they could never be placed into.
+    // yet claimed by a study AND genuinely empty (StudyID == null && no specimens) -- a
+    // never-used box isn't yet claimed by any study, so it must stay discoverable to anyone with
+    // at least one study assignment, or it could never be placed into. A StudyID == null box
+    // that already holds specimens is NOT treated as "available to anyone": that shape only
+    // exists today because Box.StudyID was added after specimens already existed and has not
+    // been backfilled for every pre-existing box (see the BackfillBoxStudyId migration). Until a
+    // box with specimens is confirmed to belong to a single study, it is hidden from everyone
+    // except System Admin -- safe-by-default rather than leaking its contents.
     private static IQueryable<Box> ApplyStudyVisibility(IQueryable<Box> query, IReadOnlyCollection<int>? visibleStudyIds)
     {
         if (visibleStudyIds == null)
@@ -121,7 +127,9 @@ public class StorageService : IStorageService
         if (visibleStudyIds.Count == 0)
             return query.Where(_ => false);
 
-        return query.Where(b => b.StudyID == null || visibleStudyIds.Contains(b.StudyID.Value));
+        return query.Where(b =>
+            (b.StudyID == null && !b.Specimens.Any()) ||
+            (b.StudyID != null && visibleStudyIds.Contains(b.StudyID.Value)));
     }
 
     public async Task MoveSpecimenAsync(int specimenId, int newBoxId, int row, int col, string userId)

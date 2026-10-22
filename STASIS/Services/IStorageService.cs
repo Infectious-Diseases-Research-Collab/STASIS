@@ -13,9 +13,12 @@ public interface IStorageService
     // set (per IStudyAccessService.GetVisibleStudyIdsAsync); an empty collection means the caller
     // has zero study assignments, and must see zero boxes -- including unassigned ones -- per the
     // "zero access means an empty state, never a fallback to see everything" rule. When non-null
-    // and non-empty, a box is visible if its StudyID is in the set OR its StudyID is null
-    // (an unassigned box isn't yet claimed by any study, so it must stay discoverable to anyone
-    // with at least one study assignment).
+    // and non-empty, a box is visible if its StudyID is in the set, OR its StudyID is null AND it
+    // has zero specimens (a genuinely unclaimed box isn't yet claimed by any study, so it must
+    // stay discoverable to anyone with at least one study assignment). A StudyID == null box that
+    // already holds specimens -- e.g. legacy data from before Box.StudyID existed that hasn't
+    // been backfilled -- is treated the same as any other inaccessible-study box: hidden from
+    // everyone but System Admin, not shown to "anyone with a study assignment".
     Task<Box?> GetBoxWithSpecimens(int boxId, IReadOnlyCollection<int>? visibleStudyIds);
 
     // Phase 3: Search and movement
