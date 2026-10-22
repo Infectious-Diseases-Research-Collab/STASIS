@@ -1,6 +1,6 @@
 # STASIS Deferred & Pending Items
 
-**Last Updated:** October 21, 2026
+**Last Updated:** October 22, 2026
 **Purpose:** Track all items across all phases that were partially implemented or deferred. Use this as a checklist when returning to unfinished work.
 
 ---
@@ -59,15 +59,14 @@ These items have groundwork in place but need additional work to be fully functi
 - **Impact:** The handler `OnGetOccupiedPositionsAsync` is currently unused by the Add page JS, so no runtime failure today. Any future caller relying on it for FP Binder boxes will receive an empty set.
 - **Fix:** Remove the `PositionCol != null` predicate and change the return type to `List<(int Row, int? Col)>`.
 
-### 9. Study-scoped Visit Types and Boxes (Add Sample page)
+### 9. Study-scoped Visit Types (Add Sample page)
 
-- **What exists:** `VisitType` and `Box` have no `StudyID` column. All visit types and all boxes appear in the Add Sample dropdowns regardless of which study is selected.
-- **What's missing:** When a study is selected, the Visit Type and Box dropdowns should be filtered to only show options relevant to that study.
-- **Agreed approach:** Schema change (Option A) — add a `StudyID` FK to `tbl_VisitTypes` and `tbl_Boxes`, configure the association in Lab Setup, then filter dynamically on the Add Sample page via a AJAX call when study changes.
-- **Open questions before implementing:**
-  - Does a visit type belong to one study only, or can the same visit type (e.g. "Baseline") be shared across multiple studies?
-  - ~~Does a box belong to one study only, or can a box hold specimens from different studies?~~ **Resolved (2026-10-21):** a box must belong to one study only — mixing is a bug, not intended behavior. Nothing in `StorageService`/`SampleService` currently enforces this. The `Box.StudyID` column being added for the study-access-control work (see `docs/superpowers/specs/2026-10-21-study-scoped-access-control-design.md`) covers this fix too — don't duplicate it.
-- **Where to implement:** EF migration to add `StudyID` FK to both tables, update `LabSetup/VisitTypes` and `LabSetup/Freezers`/Boxes pages to associate records with studies, add `OnGetVisitTypesByStudy` and `OnGetBoxesByStudy` AJAX handlers to `Add.cshtml.cs`, update `Add.cshtml` JS to re-filter dropdowns on study change.
+- **Box half: resolved (2026-10-22).** `Box` now has a `StudyID` column (added for the study-access-control work; see `docs/superpowers/specs/2026-10-21-study-scoped-access-control-design.md`), and `Pages/Samples/Add.cshtml.cs`/`.cshtml` now filter the Box dropdown to boxes already claimed by the selected study plus genuinely unassigned ones, refreshed via a new `OnGetBoxesForStudyAsync` AJAX handler when the study selection changes. Boxes belonging to a different, non-empty study are correctly excluded. Mixing specimens from different studies into one box is also now blocked (`IStorageService.ValidateAndAssignBoxStudyAsync`), closing the underlying data-integrity bug this item originally flagged.
+- **Visit Type half: still open.** `VisitType` has no `StudyID` column. All visit types still appear in the Add Sample dropdown regardless of which study is selected.
+- **What's missing:** When a study is selected, the Visit Type dropdown should be filtered to only show visit types relevant to that study.
+- **Agreed approach:** Schema change — add a `StudyID` FK to `tbl_VisitTypes`, configure the association in `LabSetup/VisitTypes`, then filter dynamically on the Add Sample page via an AJAX call when the study changes (mirroring the pattern now used for boxes).
+- **Open question before implementing:** does a visit type belong to one study only, or can the same visit type (e.g. "Baseline") be shared across multiple studies?
+- **Where to implement:** EF migration to add `StudyID` FK to `tbl_VisitTypes`, update `LabSetup/VisitTypes` to associate records with a study, add an `OnGetVisitTypesForStudyAsync` AJAX handler to `Add.cshtml.cs` (same shape as the new `OnGetBoxesForStudyAsync`), update `Add.cshtml` JS to re-filter the Visit Type dropdown on study change.
 
 ### 10. Filter Paper Binder box renders as a 9×9 grid on Boxes/Search, and never shows its specimens
 
