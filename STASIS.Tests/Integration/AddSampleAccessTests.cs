@@ -340,4 +340,93 @@ public class AddSampleAccessTests : IClassFixture<TestWebApplicationFactory>, IA
         Assert.NotNull(saved);
         Assert.Equal(study.StudyID, saved!.StudyID);
     }
+
+    // ---------------------------------------------------------------------
+    // Whole-branch review follow-up: OnGetCheckBarcodeAsync, OnGetNextPositionAsync, and
+    // OnGetOccupiedPositionsAsync carried zero access check at all -- reachable by any
+    // authenticated user via URL regardless of study access. Each must now reject a caller who
+    // only holds Viewer (not Editor) access, returning the same safe/denied shape as their
+    // existing "invalid input" branches rather than leaking real data.
+    // ---------------------------------------------------------------------
+
+    [Fact]
+    public async Task OnGetCheckBarcodeAsync_ViewerOnlyCaller_ReturnsSafeFalseResponse_NotRealBarcodeStatus()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var services = scope.ServiceProvider;
+        var context = services.GetRequiredService<StasisDbContext>();
+
+        var sysAdmin = await CreateSystemAdminAsync(services, "sysadmin-asa6@test.com");
+
+        var study = new Study { StudyCode = "ASA-CB-STUDY" };
+        context.Studies.Add(study);
+        await context.SaveChangesAsync();
+
+        // The barcode genuinely IS taken in this study.
+        await AddSpecimenAsync(context, "ASA-CB-TAKEN", study.StudyID, null, null, null);
+
+        var viewer = await CreateUserAsync(services, "viewer-asa6@test.com");
+        await GrantAsync(context, viewer.Id, study.StudyID, "Viewer", sysAdmin.Id);
+
+        var model = BuildAddModel(services, viewer.Id);
+
+        var result = await model.OnGetCheckBarcodeAsync("ASA-CB-TAKEN", study.StudyID);
+
+        var json = Assert.IsType<JsonResult>(result);
+        var taken = (bool)json.Value!.GetType().GetProperty("taken")!.GetValue(json.Value)!;
+        Assert.False(taken);
+    }
+
+    [Fact]
+    public async Task OnGetNextPositionAsync_ViewerOnlyCallerOnStudyAssignedBox_ReturnsBadRequest()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var services = scope.ServiceProvider;
+        var context = services.GetRequiredService<StasisDbContext>();
+
+        var sysAdmin = await CreateSystemAdminAsync(services, "sysadmin-asa7@test.com");
+
+        var study = new Study { StudyCode = "ASA-NP-STUDY" };
+        context.Studies.Add(study);
+        await context.SaveChangesAsync();
+
+        var box = await AddBoxAsync(context, "ASA-NP-BOX", study.StudyID);
+
+        var viewer = await CreateUserAsync(services, "viewer-asa7@test.com");
+        await GrantAsync(context, viewer.Id, study.StudyID, "Viewer", sysAdmin.Id);
+
+        var model = BuildAddModel(services, viewer.Id);
+
+        var result = await model.OnGetNextPositionAsync(box.BoxID);
+
+        Assert.IsType<BadRequestResult>(result);
+    }
+
+    [Fact]
+    public async Task OnGetOccupiedPositionsAsync_ViewerOnlyCallerOnStudyAssignedBox_ReturnsEmptyArray_NotRealPositions()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var services = scope.ServiceProvider;
+        var context = services.GetRequiredService<StasisDbContext>();
+
+        var sysAdmin = await CreateSystemAdminAsync(services, "sysadmin-asa8@test.com");
+
+        var study = new Study { StudyCode = "ASA-OP-STUDY" };
+        context.Studies.Add(study);
+        await context.SaveChangesAsync();
+
+        var box = await AddBoxAsync(context, "ASA-OP-BOX", study.StudyID);
+        await AddSpecimenAsync(context, "ASA-OP-SPEC", study.StudyID, box.BoxID, row: 1, col: 1);
+
+        var viewer = await CreateUserAsync(services, "viewer-asa8@test.com");
+        await GrantAsync(context, viewer.Id, study.StudyID, "Viewer", sysAdmin.Id);
+
+        var model = BuildAddModel(services, viewer.Id);
+
+        var result = await model.OnGetOccupiedPositionsAsync(box.BoxID);
+
+        var json = Assert.IsType<JsonResult>(result);
+        var positions = ((System.Collections.IEnumerable)json.Value!).Cast<object>();
+        Assert.Empty(positions);
+    }
 }

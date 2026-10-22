@@ -253,6 +253,17 @@ namespace STASIS.Pages.Samples
         {
             if (string.IsNullOrWhiteSpace(barcode) || barcode.Length > 100 || studyId == null)
                 return new JsonResult(new { taken = false });
+
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
+
+            // This handler carried no access check at all and is reachable directly by URL with
+            // an arbitrary studyId, regardless of the caller's actual access to that study. Gate
+            // it the same way OnPostAsync re-validates a posted StudyID -- don't trust the
+            // caller, and don't leak which barcodes exist in a study they can't edit. On failure,
+            // return the same shape the existing "invalid input" branch above already returns.
+            if (!await _studyAccessService.CanEditAsync(userId, studyId.Value))
+                return new JsonResult(new { taken = false });
+
             var taken = await _sampleService.IsBarcodeTaken(barcode, studyId.Value);
             return new JsonResult(new { taken });
         }
@@ -260,6 +271,10 @@ namespace STASIS.Pages.Samples
         public async Task<IActionResult> OnGetNextPositionAsync(int boxId, string? claimed = null)
         {
             if (boxId <= 0) return BadRequest();
+
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
+            if (!await CanAccessBoxForAddAsync(userId, boxId))
+                return BadRequest();
 
             var claimedPositions = new List<(int Row, int? Col)>();
             if (!string.IsNullOrEmpty(claimed))
@@ -284,8 +299,57 @@ namespace STASIS.Pages.Samples
         public async Task<IActionResult> OnGetOccupiedPositionsAsync(int boxId)
         {
             if (boxId <= 0) return BadRequest();
+
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
+            if (!await CanAccessBoxForAddAsync(userId, boxId))
+                return new JsonResult(Array.Empty<object>());
+
             var positions = await _sampleService.GetOccupiedPositions(boxId);
             return new JsonResult(positions.Select(p => new { row = p.Row, col = p.Col }));
+        }
+
+        // Shared gate for the boxId-based AJAX helpers above (OnGetNextPositionAsync,
+        // OnGetOccupiedPositionsAsync): neither takes a studyId directly, so the box's own
+        // StudyID has to be resolved first. GetBoxWithSpecimens(boxId, null) is called with
+        // visibleStudyIds == null (unrestricted) deliberately -- this is an authorization
+        // lookup, not a display query, so it needs the box's real StudyID regardless of the
+        // caller's own visibility, to decide whether CanEditAsync should even apply. A box
+        // already claimed by a study requires CanEditAsync on that study; a box that doesn't
+        // exist, or is genuinely unassigned (StudyID == null), falls back to "is this caller an
+        // Editor on at least one study anywhere" -- same philosophy as Boxes/Create's
+        // IsEditorAnywhereAsync (anyone with Editor access anywhere may claim an unassigned box).
+        private async Task<bool> CanAccessBoxForAddAsync(string userId, int boxId)
+        {
+            var box = await _storageService.GetBoxWithSpecimens(boxId, null);
+            if (box?.StudyID is int studyId)
+                return await _studyAccessService.CanEditAsync(userId, studyId);
+
+            return await IsEditorAnywhereAsync(userId);
+        }
+
+        // Mirrors Pages/Boxes/Create.cshtml.cs's IsEditorAnywhereAsync exactly: there's no bulk
+        // "editable study ids" method on IStudyAccessService, so this resolves the caller's own
+        // visible studies first (bounded by their own small assigned-study count) and then checks
+        // CanEditAsync per study, short-circuiting on the first match.
+        private async Task<bool> IsEditorAnywhereAsync(string userId)
+        {
+            if (await _studyAccessService.IsSystemAdminAsync(userId))
+            {
+                return true;
+            }
+
+            var visibleStudyIds = await _studyAccessService.GetVisibleStudyIdsAsync(userId);
+            var candidateStudies = await _sampleService.GetAllStudies(visibleStudyIds);
+
+            foreach (var study in candidateStudies)
+            {
+                if (await _studyAccessService.CanEditAsync(userId, study.StudyID))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private async Task LoadDropdownsAsync(string userId, bool isSystemAdmin)
