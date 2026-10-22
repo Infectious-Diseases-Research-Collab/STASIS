@@ -849,4 +849,87 @@ public class RemainingWriteGatesTests : IClassFixture<TestWebApplicationFactory>
         var reloaded = await context.Boxes.AsNoTracking().SingleAsync(b => b.BoxID == box.BoxID);
         Assert.Equal(rack.RackID, reloaded.RackID);
     }
+
+    [Fact]
+    public async Task Place_OnGetAsync_CallerWithNoAccessToBoxStudy_DoesNotReturnBox()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var services = scope.ServiceProvider;
+        var context = services.GetRequiredService<StasisDbContext>();
+
+        var sysAdmin = await CreateSystemAdminAsync(services, "sysadmin-rwg19@test.com");
+        var study = new Study { StudyCode = "RWG-P-GET-OTHER" };
+        context.Studies.Add(study);
+        await context.SaveChangesAsync();
+
+        // Caller has zero UserStudyAccess rows at all.
+        var caller = await CreateUserAsync(services, "noaccess-rwg19@test.com");
+
+        var box = await AddBoxAsync(context, "RWG-P-GETBOX1", study.StudyID);
+
+        var model = BuildPlaceModel(services, caller.Id);
+        model.BoxLabel = box.BoxLabel;
+
+        await model.OnGetAsync();
+
+        Assert.Null(model.FoundBox);
+    }
+
+    [Fact]
+    public async Task Place_OnGetAsync_CallerWithEditAccessToBoxStudy_ReturnsBox()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var services = scope.ServiceProvider;
+        var context = services.GetRequiredService<StasisDbContext>();
+
+        var sysAdmin = await CreateSystemAdminAsync(services, "sysadmin-rwg20@test.com");
+        var study = new Study { StudyCode = "RWG-P-GET-MINE" };
+        context.Studies.Add(study);
+        await context.SaveChangesAsync();
+
+        var caller = await CreateUserAsync(services, "editor-rwg20@test.com");
+        await GrantAsync(context, caller.Id, study.StudyID, "Editor", sysAdmin.Id);
+
+        var box = await AddBoxAsync(context, "RWG-P-GETBOX2", study.StudyID);
+
+        var model = BuildPlaceModel(services, caller.Id);
+        model.BoxLabel = box.BoxLabel;
+
+        await model.OnGetAsync();
+
+        Assert.NotNull(model.FoundBox);
+        Assert.Equal(box.BoxID, model.FoundBox!.BoxID);
+    }
+
+    [Fact]
+    public async Task Place_OnPostAsync_CallerIsEditorOnDifferentStudyThanBox_ReturnsForbid_BoxNotMoved()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var services = scope.ServiceProvider;
+        var context = services.GetRequiredService<StasisDbContext>();
+
+        var sysAdmin = await CreateSystemAdminAsync(services, "sysadmin-rwg21@test.com");
+
+        var ownStudy = new Study { StudyCode = "RWG-P-OWN" };
+        var otherStudy = new Study { StudyCode = "RWG-P-OTHER" };
+        context.Studies.AddRange(ownStudy, otherStudy);
+        await context.SaveChangesAsync();
+
+        var caller = await CreateUserAsync(services, "editor-rwg21@test.com");
+        await GrantAsync(context, caller.Id, ownStudy.StudyID, "Editor", sysAdmin.Id);
+
+        // Box belongs to a study the caller has no access to.
+        var box = await AddBoxAsync(context, "RWG-P-BOX3", otherStudy.StudyID);
+
+        var model = BuildPlaceModel(services, caller.Id);
+        model.BoxId = box.BoxID;
+        model.NewRackId = 999;
+
+        var result = await model.OnPostAsync();
+
+        Assert.IsType<ForbidResult>(result);
+
+        var reloaded = await context.Boxes.AsNoTracking().SingleAsync(b => b.BoxID == box.BoxID);
+        Assert.Null(reloaded.RackID);
+    }
 }

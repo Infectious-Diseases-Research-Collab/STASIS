@@ -37,11 +37,11 @@ namespace STASIS.Pages.Boxes
         {
             if (!string.IsNullOrEmpty(BoxLabel))
             {
-                // Study-scoped filtering of the box placement workflow is out of scope for this
-                // task (box detail/placement write paths are a later task) -- see
-                // STASIS_Deferred_Items.md item 9. Passing null here is the intentional,
-                // explicit "unfiltered for now" call, not an accidental default.
-                FoundBox = await _storageService.GetBoxByLabelAsync(BoxLabel, null);
+                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
+                var isSystemAdmin = await _studyAccessService.IsSystemAdminAsync(userId);
+                var visibleStudyIds = isSystemAdmin ? null : await _studyAccessService.GetVisibleStudyIdsAsync(userId);
+
+                FoundBox = await _storageService.GetBoxByLabelAsync(BoxLabel, visibleStudyIds);
             }
             await LoadOptionsAsync();
         }
@@ -51,6 +51,17 @@ namespace STASIS.Pages.Boxes
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
 
             if (!await IsEditorAnywhereAsync(userId))
+            {
+                return Forbid();
+            }
+
+            var box = await _storageService.GetBoxWithSpecimens(BoxId, null);
+            if (box == null)
+            {
+                return NotFound();
+            }
+
+            if (box.StudyID.HasValue && !await _studyAccessService.CanEditAsync(userId, box.StudyID.Value))
             {
                 return Forbid();
             }
