@@ -105,6 +105,28 @@ public class BoxStudyEnforcementTests
         Assert.Equal(studyA.StudyID, reloaded.StudyID);
     }
 
+    [Fact]
+    public async Task ValidateAndAssignBoxStudyAsync_OnNullStudyIdBoxWithSpecimensFromDifferentStudy_Throws()
+    {
+        var context = TestDbContextFactory.Create();
+        var service = CreateService(context);
+
+        var studyA = await AddStudyAsync(context, "AMBIG-STUDY-A");
+        var studyB = await AddStudyAsync(context, "AMBIG-STUDY-B");
+
+        // Box left with StudyID == null because its specimens already span two studies -- the
+        // exact shape BackfillBoxStudyId leaves for manual cleanup.
+        var box = await AddBoxAsync(context, "AMBIG-BOX", null, "Standard");
+        await AddSpecimenAsync(context, "AMBIG-S1", studyA.StudyID, box.BoxID, 0, 0);
+        await AddSpecimenAsync(context, "AMBIG-S2", studyB.StudyID, box.BoxID, 0, 1);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.ValidateAndAssignBoxStudyAsync(box.BoxID, studyA.StudyID));
+
+        var reloaded = await context.Boxes.AsNoTracking().SingleAsync(b => b.BoxID == box.BoxID);
+        Assert.Null(reloaded.StudyID);
+    }
+
     // --- MoveSpecimenAsync ---
 
     [Fact]

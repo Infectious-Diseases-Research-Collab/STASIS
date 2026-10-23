@@ -348,8 +348,18 @@ namespace STASIS.Pages.Samples
         private async Task<bool> CanAccessBoxForAddAsync(string userId, int boxId)
         {
             var box = await _storageService.GetBoxWithSpecimens(boxId, null);
-            if (box?.StudyID is int studyId)
+            if (box == null)
+                return false;
+
+            if (box.StudyID is int studyId)
                 return await _studyAccessService.CanEditAsync(userId, studyId);
+
+            // StudyID is null: either genuinely unclaimed (zero specimens -- claimable by any editor
+            // anywhere) or an ambiguous legacy box whose specimens already span more than one study,
+            // left for manual admin cleanup -- must not be treated as claimable, mirroring
+            // StorageService.ApplyStudyVisibility's rule hiding such boxes from non-admins.
+            if (box.Specimens.Count > 0)
+                return await _studyAccessService.IsSystemAdminAsync(userId);
 
             return await IsEditorAnywhereAsync(userId);
         }

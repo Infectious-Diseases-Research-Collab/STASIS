@@ -277,7 +277,9 @@ public class StorageService : IStorageService
 
     public async Task ValidateAndAssignBoxStudyAsync(int boxId, int studyId)
     {
-        var box = await _context.Boxes.FindAsync(boxId);
+        var box = await _context.Boxes
+            .Include(b => b.Specimens)
+            .FirstOrDefaultAsync(b => b.BoxID == boxId);
         if (box == null)
             return;
 
@@ -289,6 +291,15 @@ public class StorageService : IStorageService
 
         if (!box.StudyID.HasValue)
         {
+            // A null StudyID with existing specimens from a different study is the ambiguous
+            // legacy-box case the BackfillBoxStudyId migration leaves for manual admin cleanup --
+            // must not be silently claimed for whichever study happens to come along next.
+            if (box.Specimens.Any(s => s.StudyID != studyId))
+            {
+                throw new InvalidOperationException(
+                    $"Box {boxId} already holds specimens from a different study than {studyId} and has no assigned StudyID; it needs manual cleanup before more specimens can be added.");
+            }
+
             box.StudyID = studyId;
         }
     }

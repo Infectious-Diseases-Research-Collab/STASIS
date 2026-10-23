@@ -442,6 +442,40 @@ public class AddSampleAccessTests : IClassFixture<TestWebApplicationFactory>, IA
     }
 
     [Fact]
+    public async Task CanAccessBoxForAddAsync_AmbiguousNullStudyIdBox_DeniedToNonSystemAdmin()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var services = scope.ServiceProvider;
+        var context = services.GetRequiredService<StasisDbContext>();
+
+        var sysAdmin = await CreateSystemAdminAsync(services, "sysadmin-ambig1@test.com");
+
+        var studyA = new Study { StudyCode = "ADD-AMBIG-A" };
+        var studyB = new Study { StudyCode = "ADD-AMBIG-B" };
+        context.Studies.AddRange(studyA, studyB);
+        await context.SaveChangesAsync();
+
+        var caller = await CreateUserAsync(services, "editor-ambig1@test.com");
+        await GrantAsync(context, caller.Id, studyA.StudyID, "Editor", sysAdmin.Id);
+
+        var box = new Box { BoxLabel = "ADD-AMBIG-BOX", BoxType = "81-slot", BoxCategory = "Standard", StudyID = null };
+        context.Boxes.Add(box);
+        await context.SaveChangesAsync();
+        await AddSpecimenAsync(context, "ADD-AMBIG-S1", studyA.StudyID, box.BoxID, 0, 0);
+        await AddSpecimenAsync(context, "ADD-AMBIG-S2", studyB.StudyID, box.BoxID, 0, 1);
+
+        var model = BuildAddModel(services, caller.Id);
+
+        var result = await model.OnGetNextPositionAsync(box.BoxID);
+
+        // OnGetNextPositionAsync converts every CanAccessBoxForAddAsync denial -- regardless of
+        // reason -- into BadRequest(), matching OnGetNextPositionAsync_ViewerOnlyCallerOnStudyAssignedBox_ReturnsBadRequest
+        // above (the convention Task 3 established for this endpoint: don't let the response
+        // shape leak *why* access was denied).
+        Assert.IsType<BadRequestResult>(result);
+    }
+
+    [Fact]
     public async Task OnGetOccupiedPositionsAsync_ViewerOnlyCallerOnStudyAssignedBox_ReturnsEmptyArray_NotRealPositions()
     {
         using var scope = _factory.Services.CreateScope();
