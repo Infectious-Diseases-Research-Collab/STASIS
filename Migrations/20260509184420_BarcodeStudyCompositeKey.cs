@@ -10,6 +10,14 @@ namespace STASIS.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.Sql(@"
+                DO $$
+                BEGIN
+                    IF EXISTS (SELECT 1 FROM ""tbl_Specimens"" WHERE ""StudyID"" IS NULL) THEN
+                        RAISE EXCEPTION 'tbl_Specimens has rows with StudyID IS NULL; assign a StudyID to every specimen before applying this migration.';
+                    END IF;
+                END $$;");
+
             migrationBuilder.DropForeignKey(
                 name: "FK_tbl_Specimens_tbl_Studies_StudyID",
                 table: "tbl_Specimens");
