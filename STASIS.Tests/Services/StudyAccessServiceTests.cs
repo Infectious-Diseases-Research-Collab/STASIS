@@ -206,4 +206,62 @@ public class StudyAccessServiceTests
         Assert.Equal(access.UserStudyAccessID, auditLog.RecordID);
         Assert.Equal(granter.Id, auditLog.ChangedByUserId);
     }
+
+    [Fact]
+    public async Task RevokeAccessAsync_LastStudyAdmin_Throws_AndRowUnchanged()
+    {
+        var context = TestDbContextFactory.Create();
+        var (userManager, _) = IdentityTestFactory.Create(context);
+        var service = new StudyAccessService(context, userManager, new AuditService(context));
+
+        var study = new Study { StudyCode = "SAS-LASTADMIN" };
+        context.Studies.Add(study);
+        await context.SaveChangesAsync();
+
+        var user = new IdentityUser { UserName = "lastadmin@test.com", Email = "lastadmin@test.com" };
+        await userManager.CreateAsync(user);
+
+        context.UserStudyAccesses.Add(new UserStudyAccess
+        {
+            AspNetUserId = user.Id, StudyID = study.StudyID, Role = "StudyAdmin",
+            GrantedByUserId = "granter", GrantedDate = DateTime.UtcNow
+        });
+        await context.SaveChangesAsync();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.RevokeAccessAsync(user.Id, study.StudyID, "granter"));
+
+        var stillThere = await context.UserStudyAccesses.AsNoTracking()
+            .SingleOrDefaultAsync(a => a.AspNetUserId == user.Id && a.StudyID == study.StudyID);
+        Assert.NotNull(stillThere);
+    }
+
+    [Fact]
+    public async Task ChangeRoleAsync_DemotingLastStudyAdmin_Throws_AndRoleUnchanged()
+    {
+        var context = TestDbContextFactory.Create();
+        var (userManager, _) = IdentityTestFactory.Create(context);
+        var service = new StudyAccessService(context, userManager, new AuditService(context));
+
+        var study = new Study { StudyCode = "SAS-LASTADMIN-DEMOTE" };
+        context.Studies.Add(study);
+        await context.SaveChangesAsync();
+
+        var user = new IdentityUser { UserName = "lastadmin2@test.com", Email = "lastadmin2@test.com" };
+        await userManager.CreateAsync(user);
+
+        context.UserStudyAccesses.Add(new UserStudyAccess
+        {
+            AspNetUserId = user.Id, StudyID = study.StudyID, Role = "StudyAdmin",
+            GrantedByUserId = "granter", GrantedDate = DateTime.UtcNow
+        });
+        await context.SaveChangesAsync();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.ChangeRoleAsync(user.Id, study.StudyID, "Editor", "granter"));
+
+        var reloaded = await context.UserStudyAccesses.AsNoTracking()
+            .SingleAsync(a => a.AspNetUserId == user.Id && a.StudyID == study.StudyID);
+        Assert.Equal("StudyAdmin", reloaded.Role);
+    }
 }

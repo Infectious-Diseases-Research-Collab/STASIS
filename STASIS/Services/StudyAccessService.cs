@@ -155,6 +155,11 @@ public class StudyAccessService : IStudyAccessService
             return;
         }
 
+        if (access.Role == "StudyAdmin" && await CountStudyAdminsAsync(studyId) <= 1)
+        {
+            throw new InvalidOperationException("A study must have at least one Study Admin.");
+        }
+
         var oldRole = access.Role;
         var recordId = access.UserStudyAccessID;
 
@@ -176,6 +181,11 @@ public class StudyAccessService : IStudyAccessService
         if (access == null)
         {
             return;
+        }
+
+        if (access.Role == "StudyAdmin" && newRole != "StudyAdmin" && await CountStudyAdminsAsync(studyId) <= 1)
+        {
+            throw new InvalidOperationException("A study must have at least one Study Admin.");
         }
 
         var oldRole = access.Role;

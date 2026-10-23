@@ -248,19 +248,19 @@ namespace STASIS.Pages.Administration
                 return RedirectToPage(new { id = userId });
             }
 
-            if (currentRole == StudyRole.StudyAdmin)
+            try
             {
-                var adminCount = await _studyAccessService.CountStudyAdminsAsync(studyId);
-                if (adminCount <= 1)
-                {
-                    TempData["Error"] = "A study must have at least one Study Admin.";
-                    return RedirectToPage(new { id = userId });
-                }
+                // RevokeAccessAsync writes its own "tbl_UserStudyAccess" audit log entry, mirroring
+                // GrantAccessAsync, so there is no separate LogChangeAsync call to make here. It
+                // also enforces the "at least one Study Admin" guardrail itself, throwing if the
+                // target row is the study's last remaining Study Admin.
+                await _studyAccessService.RevokeAccessAsync(userId, studyId, currentUserId);
             }
-
-            // RevokeAccessAsync writes its own "tbl_UserStudyAccess" audit log entry, mirroring
-            // GrantAccessAsync, so there is no separate LogChangeAsync call to make here.
-            await _studyAccessService.RevokeAccessAsync(userId, studyId, currentUserId);
+            catch (InvalidOperationException ex)
+            {
+                TempData["Error"] = ex.Message;
+                return RedirectToPage(new { id = userId });
+            }
 
             TempData["Success"] = "Access revoked.";
             return RedirectToPage(new { id = userId });
@@ -293,19 +293,19 @@ namespace STASIS.Pages.Administration
                 return RedirectToPage(new { id = userId });
             }
 
-            if (currentRole == StudyRole.StudyAdmin && newRole != "StudyAdmin")
+            try
             {
-                var adminCount = await _studyAccessService.CountStudyAdminsAsync(studyId);
-                if (adminCount <= 1)
-                {
-                    TempData["Error"] = "A study must have at least one Study Admin.";
-                    return RedirectToPage(new { id = userId });
-                }
+                // ChangeRoleAsync writes its own "tbl_UserStudyAccess" audit log entry, mirroring
+                // GrantAccessAsync, so there is no separate LogChangeAsync call to make here. It
+                // also enforces the "at least one Study Admin" guardrail itself, throwing if the
+                // target row is the study's last remaining Study Admin and newRole isn't StudyAdmin.
+                await _studyAccessService.ChangeRoleAsync(userId, studyId, newRole, currentUserId);
             }
-
-            // ChangeRoleAsync writes its own "tbl_UserStudyAccess" audit log entry, mirroring
-            // GrantAccessAsync, so there is no separate LogChangeAsync call to make here.
-            await _studyAccessService.ChangeRoleAsync(userId, studyId, newRole, currentUserId);
+            catch (InvalidOperationException ex)
+            {
+                TempData["Error"] = ex.Message;
+                return RedirectToPage(new { id = userId });
+            }
 
             TempData["Success"] = "Role updated.";
             return RedirectToPage(new { id = userId });

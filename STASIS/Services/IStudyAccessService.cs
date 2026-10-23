@@ -39,15 +39,19 @@ public interface IStudyAccessService
 
     // Revokes a user's access to a study by deleting their UserStudyAccess row. A no-op if the
     // user had no access row for that study. Callers are responsible for authorizing the revoke
-    // (e.g. CanManageStudyAsync) and for enforcing the "at least one Study Admin" guardrail
-    // before calling this. Also writes the "tbl_UserStudyAccess" audit log entry itself, mirroring
-    // GrantAccessAsync, using the deleted row's own UserStudyAccessID as RecordID.
+    // (e.g. CanManageStudyAsync) before calling this. Enforces the "at least one Study Admin"
+    // guardrail itself: throws InvalidOperationException (and leaves the row untouched) if the
+    // target row is the study's last remaining StudyAdmin row. Also writes the
+    // "tbl_UserStudyAccess" audit log entry itself, mirroring GrantAccessAsync, using the deleted
+    // row's own UserStudyAccessID as RecordID.
     Task RevokeAccessAsync(string userId, int studyId, string revokedByUserId);
 
     // Changes a user's role on a study by updating their existing UserStudyAccess row. A no-op if
     // the user had no access row for that study. Callers are responsible for authorizing the
-    // change (e.g. CanManageStudyAsync) and for enforcing the "at least one Study Admin" guardrail
-    // before calling this. Also writes the "tbl_UserStudyAccess" audit log entry itself, mirroring
-    // GrantAccessAsync, using the row's own UserStudyAccessID as RecordID.
+    // change (e.g. CanManageStudyAsync) before calling this. Enforces the "at least one Study
+    // Admin" guardrail itself: throws InvalidOperationException (and leaves the role unchanged) if
+    // the target row is the study's last remaining StudyAdmin row and newRole is not StudyAdmin.
+    // Also writes the "tbl_UserStudyAccess" audit log entry itself, mirroring GrantAccessAsync,
+    // using the row's own UserStudyAccessID as RecordID.
     Task ChangeRoleAsync(string userId, int studyId, string newRole, string changedByUserId);
 }
