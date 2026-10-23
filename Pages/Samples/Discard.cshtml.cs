@@ -106,6 +106,13 @@ namespace STASIS.Pages.Samples
                 var matches = await _sampleService.GetSpecimensByBarcode(barcode);
                 foreach (var specimen in matches)
                 {
+                    // A specimen in a study the caller cannot even view must not be revealed to exist,
+                    // mirroring OnPostLookupAsync's guard.
+                    if (!await _studyAccessService.CanViewAsync(userId, specimen.StudyID))
+                    {
+                        continue;
+                    }
+
                     if (specimen.Status != "Discarded" &&
                         specimen.Status != "Shipped" &&
                         specimen.DiscardApprovalID == null)

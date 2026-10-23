@@ -302,6 +302,33 @@ public class RemainingWriteGatesTests : IClassFixture<TestWebApplicationFactory>
         Assert.Null(model.CreatedApproval);
     }
 
+    [Fact]
+    public async Task Discard_OnPostRequestAsync_SpecimenInStudyCallerCannotView_NotRevealedInMessage()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var services = scope.ServiceProvider;
+        var context = services.GetRequiredService<StasisDbContext>();
+
+        var sysAdmin = await CreateSystemAdminAsync(services, "sysadmin-rwg-disc2@test.com");
+
+        var hiddenStudy = new Study { StudyCode = "RWG-DISC-HIDDEN" };
+        context.Studies.Add(hiddenStudy);
+        await context.SaveChangesAsync();
+
+        // Caller has zero access to hiddenStudy -- cannot even view it.
+        var caller = await CreateUserAsync(services, "noaccess-rwg-disc2@test.com");
+
+        await AddSpecimenAsync(context, "RWG-DISC-HIDDEN-001", hiddenStudy.StudyID, null, null, null);
+
+        var model = BuildDiscardModel(services, caller.Id);
+        model.Barcodes = "RWG-DISC-HIDDEN-001";
+
+        var result = await model.OnPostRequestAsync();
+
+        Assert.Null(model.CreatedApproval);
+        Assert.False(model.TempData.ContainsKey("Success"));
+    }
+
     // ---------------------------------------------------------------------
     // Boxes/Move
     // ---------------------------------------------------------------------
