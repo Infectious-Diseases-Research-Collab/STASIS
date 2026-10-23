@@ -303,7 +303,7 @@ public class RemainingWriteGatesTests : IClassFixture<TestWebApplicationFactory>
     }
 
     [Fact]
-    public async Task Discard_OnPostRequestAsync_SpecimenInStudyCallerCannotView_NotRevealedInMessage()
+    public async Task Discard_OnPostRequestAsync_MixedBatchWithHiddenStudySpecimen_HiddenOneNotRevealedInMessage()
     {
         using var scope = _factory.Services.CreateScope();
         var services = scope.ServiceProvider;
@@ -312,21 +312,51 @@ public class RemainingWriteGatesTests : IClassFixture<TestWebApplicationFactory>
         var sysAdmin = await CreateSystemAdminAsync(services, "sysadmin-rwg-disc2@test.com");
 
         var hiddenStudy = new Study { StudyCode = "RWG-DISC-HIDDEN" };
-        context.Studies.Add(hiddenStudy);
+        var visibleStudy = new Study { StudyCode = "RWG-DISC-VISIBLE" };
+        context.Studies.AddRange(hiddenStudy, visibleStudy);
         await context.SaveChangesAsync();
 
-        // Caller has zero access to hiddenStudy -- cannot even view it.
+        // Caller has zero access to hiddenStudy -- cannot even view it -- but is an Editor on
+        // visibleStudy. Posting both barcodes together is the only way to distinguish the fixed
+        // behavior (hidden one silently dropped, visible one discarded) from the unfixed one
+        // (hidden one reaches the CanEditAsync-fails branch and gets named in the Skipped section
+        // of the success message, revealing its existence and StudyCode).
         var caller = await CreateUserAsync(services, "noaccess-rwg-disc2@test.com");
+        await GrantAsync(context, caller.Id, visibleStudy.StudyID, "Editor", sysAdmin.Id);
 
         await AddSpecimenAsync(context, "RWG-DISC-HIDDEN-001", hiddenStudy.StudyID, null, null, null);
+        var visibleSpecimen = await AddSpecimenAsync(context, "RWG-DISC-VISIBLE-001", visibleStudy.StudyID, null, null, null);
 
         var model = BuildDiscardModel(services, caller.Id);
-        model.Barcodes = "RWG-DISC-HIDDEN-001";
+        model.Barcodes = "RWG-DISC-HIDDEN-001,RWG-DISC-VISIBLE-001";
 
         var result = await model.OnPostRequestAsync();
 
-        Assert.Null(model.CreatedApproval);
-        Assert.False(model.TempData.ContainsKey("Success"));
+        Assert.IsType<PageResult>(result);
+        Assert.NotNull(model.CreatedApproval);
+
+        var approvalContents = await context.Specimens
+            .Where(s => s.DiscardApprovalID == model.CreatedApproval!.ApprovalID)
+            .ToListAsync();
+        Assert.Contains(approvalContents, s => s.SpecimenID == visibleSpecimen.SpecimenID);
+
+        // Only the visible specimen was discarded -- the hidden one was silently dropped by the
+        // CanViewAsync gate, not routed into the Skipped-with-reason branch.
+        Assert.Single(approvalContents);
+
+        Assert.True(model.TempData.ContainsKey("Success"));
+        var message = (string)model.TempData["Success"]!;
+
+        // The visible, editable specimen's discard is reported...
+        Assert.Contains("for 1 specimen(s)", message);
+
+        // ...but the hidden study must not be named anywhere in the message, including any
+        // "Skipped" section -- this is the actual leak OnPostLookupAsync's CanViewAsync gate
+        // guards against. Unfixed code would reach the CanEditAsync-fails branch for the hidden
+        // specimen and append it to the Skipped section, naming its barcode and StudyCode.
+        Assert.DoesNotContain("Skipped", message);
+        Assert.DoesNotContain("RWG-DISC-HIDDEN", message);
+        Assert.DoesNotContain("RWG-DISC-HIDDEN-001", message);
     }
 
     // ---------------------------------------------------------------------
