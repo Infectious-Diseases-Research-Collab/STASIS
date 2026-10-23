@@ -341,6 +341,45 @@ public class AddSampleAccessTests : IClassFixture<TestWebApplicationFactory>, IA
         Assert.Equal(study.StudyID, saved!.StudyID);
     }
 
+    [Fact]
+    public async Task OnPostAsync_PostedStudyCallerCannotEdit_DoesNotPopulateBoxesForThatStudy()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var services = scope.ServiceProvider;
+        var context = services.GetRequiredService<StasisDbContext>();
+
+        var sysAdmin = await CreateSystemAdminAsync(services, "sysadmin-add-leak1@test.com");
+
+        var ownStudy = new Study { StudyCode = "ADD-LEAK-OWN" };
+        var otherStudy = new Study { StudyCode = "ADD-LEAK-OTHER" };
+        context.Studies.AddRange(ownStudy, otherStudy);
+        await context.SaveChangesAsync();
+
+        var caller = await CreateUserAsync(services, "editor-add-leak1@test.com");
+        await GrantAsync(context, caller.Id, ownStudy.StudyID, "Editor", sysAdmin.Id);
+
+        var freezer = new Freezer { FreezerName = "ADD-LEAK-FREEZER" };
+        context.Freezers.Add(freezer);
+        await context.SaveChangesAsync();
+        var compartment = new Compartment { CompartmentName = "ADD-LEAK-COMPARTMENT", FreezerID = freezer.FreezerID };
+        context.Compartments.Add(compartment);
+        await context.SaveChangesAsync();
+        var rack = new Rack { RackName = "ADD-LEAK-RACK", CompartmentID = compartment.CompartmentID };
+        context.Racks.Add(rack);
+        await context.SaveChangesAsync();
+        var otherStudyBox = new Box { BoxLabel = "ADD-LEAK-SECRETBOX", BoxType = "81-slot", BoxCategory = "Standard", StudyID = otherStudy.StudyID, RackID = rack.RackID };
+        context.Boxes.Add(otherStudyBox);
+        await context.SaveChangesAsync();
+
+        var model = BuildAddModel(services, caller.Id);
+        model.StudyID = otherStudy.StudyID; // caller cannot edit this study
+        model.Samples = new List<AddModel.SampleInput> { new() { BarcodeID = "ADD-LEAK-001" } };
+
+        var result = await model.OnPostAsync();
+
+        Assert.False(model.AllBoxes.Any(b => b.BoxID == otherStudyBox.BoxID));
+    }
+
     // ---------------------------------------------------------------------
     // Whole-branch review follow-up: OnGetCheckBarcodeAsync, OnGetNextPositionAsync, and
     // OnGetOccupiedPositionsAsync carried zero access check at all -- reachable by any

@@ -100,16 +100,21 @@ namespace STASIS.Pages.Samples
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
             var isSystemAdmin = await _studyAccessService.IsSystemAdminAsync(userId);
 
-            await LoadDropdownsAsync(userId, isSystemAdmin, StudyID);
+            // Re-validate the posted StudyID server-side before using it for anything, including
+            // rendering dropdowns -- the Study dropdown only offers editable studies, but a caller
+            // can post any StudyID directly, so don't trust it enough to even reveal that study's
+            // box inventory on a later validation failure.
+            var studyIdIsEditable = StudyID.HasValue &&
+                (isSystemAdmin || await _studyAccessService.CanEditAsync(userId, StudyID.Value));
+
+            await LoadDropdownsAsync(userId, isSystemAdmin, studyIdIsEditable ? StudyID : null);
 
             if (!ModelState.IsValid)
             {
                 return Page();
             }
 
-            // Re-validate the posted StudyID server-side -- the Study dropdown only offers
-            // editable studies, but a caller can post any StudyID directly, so don't trust it.
-            if (!await _studyAccessService.CanEditAsync(userId, StudyID!.Value))
+            if (!studyIdIsEditable)
             {
                 ModelState.AddModelError(string.Empty, "You do not have permission to add samples to this study.");
                 return Page();
