@@ -172,26 +172,15 @@ namespace STASIS.Pages.Administration
 
         private readonly record struct CallerAuthorization(bool IsSystemAdmin, HashSet<int> ManagedStudyIds, bool Forbidden);
 
-        // Mirrors Pages/Administration/Users.cshtml.cs's access check: this page is for System
-        // Admins and Study Admins (of at least one study) only.
         private async Task<CallerAuthorization> AuthorizeCallerAsync(string currentUserId)
         {
             var isSystemAdmin = await _studyAccessService.IsSystemAdminAsync(currentUserId);
-            var managedStudyIds = new HashSet<int>();
 
+            var managedStudyIds = new HashSet<int>();
             if (!isSystemAdmin)
             {
-                var visibleStudyIds = await _studyAccessService.GetVisibleStudyIdsAsync(currentUserId);
-                if (visibleStudyIds != null)
-                {
-                    foreach (var studyId in visibleStudyIds)
-                    {
-                        if (await _studyAccessService.GetRoleAsync(currentUserId, studyId) == StudyRole.StudyAdmin)
-                        {
-                            managedStudyIds.Add(studyId);
-                        }
-                    }
-                }
+                var manageableStudies = await _studyAccessService.GetManageableStudiesAsync(currentUserId);
+                managedStudyIds = manageableStudies.Select(s => s.StudyID).ToHashSet();
 
                 if (managedStudyIds.Count == 0)
                 {

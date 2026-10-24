@@ -41,25 +41,12 @@ namespace STASIS.Pages.Administration
 
             var isSystemAdmin = await _studyAccessService.IsSystemAdminAsync(currentUserId);
 
-            // Studies where the caller is a Study Admin. Irrelevant (left empty) for a System
-            // Admin, who sees everyone unfiltered.
             var managedStudyIds = new HashSet<int>();
             if (!isSystemAdmin)
             {
-                var visibleStudyIds = await _studyAccessService.GetVisibleStudyIdsAsync(currentUserId);
-                if (visibleStudyIds != null)
-                {
-                    foreach (var studyId in visibleStudyIds)
-                    {
-                        if (await _studyAccessService.GetRoleAsync(currentUserId, studyId) == StudyRole.StudyAdmin)
-                        {
-                            managedStudyIds.Add(studyId);
-                        }
-                    }
-                }
+                var manageableStudies = await _studyAccessService.GetManageableStudiesAsync(currentUserId);
+                managedStudyIds = manageableStudies.Select(s => s.StudyID).ToHashSet();
 
-                // Neither a System Admin nor a Study Admin of any study: this page is for admins
-                // only, never plain Viewer/Editor staff.
                 if (managedStudyIds.Count == 0)
                 {
                     return Forbid();
