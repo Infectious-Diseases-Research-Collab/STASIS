@@ -100,8 +100,9 @@ namespace STASIS.Pages.Administration
                 CanApproveDiscards = profile?.CanApproveDiscards ?? false
             };
 
-            await LoadAccessRowsAsync(user.Id, authorization);
-            GrantableStudies = await BuildGrantableStudySelectListAsync(currentUserId, user.Id);
+            var allAccess = await _studyAccessService.GetAllAccessRowsAsync();
+            await LoadAccessRowsAsync(user.Id, authorization, allAccess);
+            GrantableStudies = await BuildGrantableStudySelectListAsync(currentUserId, user.Id, allAccess);
 
             return Page();
         }
@@ -127,8 +128,9 @@ namespace STASIS.Pages.Administration
 
             if (!ModelState.IsValid)
             {
-                await LoadAccessRowsAsync(Input.UserId, authorization);
-                GrantableStudies = await BuildGrantableStudySelectListAsync(currentUserId, Input.UserId);
+                var allAccess = await _studyAccessService.GetAllAccessRowsAsync();
+                await LoadAccessRowsAsync(Input.UserId, authorization, allAccess);
+                GrantableStudies = await BuildGrantableStudySelectListAsync(currentUserId, Input.UserId, allAccess);
                 return Page();
             }
 
@@ -332,9 +334,8 @@ namespace STASIS.Pages.Administration
             return new CallerAuthorization(isSystemAdmin, managedStudyIds, false);
         }
 
-        private async Task LoadAccessRowsAsync(string userId, CallerAuthorization authorization)
+        private Task LoadAccessRowsAsync(string userId, CallerAuthorization authorization, List<UserStudyAccess> allAccess)
         {
-            var allAccess = await _studyAccessService.GetAllAccessRowsAsync();
             var rows = allAccess.Where(a => a.AspNetUserId == userId);
 
             if (!authorization.IsSystemAdmin)
@@ -354,13 +355,14 @@ namespace STASIS.Pages.Administration
                 })
                 .OrderBy(a => a.StudyCode)
                 .ToList();
+
+            return Task.CompletedTask;
         }
 
-        private async Task<SelectList> BuildGrantableStudySelectListAsync(string currentUserId, string targetUserId)
+        private async Task<SelectList> BuildGrantableStudySelectListAsync(string currentUserId, string targetUserId, List<UserStudyAccess> allAccess)
         {
             var manageableStudies = await _studyAccessService.GetManageableStudiesAsync(currentUserId);
 
-            var allAccess = await _studyAccessService.GetAllAccessRowsAsync();
             var alreadyGrantedStudyIds = allAccess
                 .Where(a => a.AspNetUserId == targetUserId)
                 .Select(a => a.StudyID)
