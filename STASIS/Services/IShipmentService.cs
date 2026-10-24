@@ -5,7 +5,7 @@ namespace STASIS.Services;
 public interface IShipmentService
 {
     // Batch import
-    Task<ShipmentBatch> ImportBatchFromCsvAsync(Stream csvStream, string userId, string? requestorName, string? requestorEmail);
+    Task<ShipmentBatch> ImportBatchFromCsvAsync(Stream csvStream, string userId, string? requestorName, string? requestorEmail, IReadOnlyCollection<int>? editableStudyIds);
 
     // Queries
     Task<List<ShipmentBatch>> GetAllBatchesAsync();

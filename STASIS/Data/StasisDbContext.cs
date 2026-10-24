@@ -255,7 +255,7 @@ public class StasisDbContext : IdentityDbContext
         modelBuilder.Entity<ShipmentRequest>()
             .ToTable(t => t.HasCheckConstraint(
                 "CK_ShipmentRequests_Status",
-                "\"Status\" IN ('Pending', 'Staged', 'Shipped', 'Not Found', 'Previously Shipped', 'Discarded', 'Not Yet Received')"));
+                "\"Status\" IN ('Pending', 'Staged', 'Shipped', 'Not Found', 'Previously Shipped', 'Discarded', 'Not Yet Received', 'No Access')"));
 
         modelBuilder.Entity<ShipmentRequest>()
             .HasOne(r => r.Batch)

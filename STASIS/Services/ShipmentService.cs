@@ -17,7 +17,7 @@ public class ShipmentService : IShipmentService
     }
 
     public async Task<ShipmentBatch> ImportBatchFromCsvAsync(Stream csvStream, string userId,
-        string? requestorName, string? requestorEmail)
+        string? requestorName, string? requestorEmail, IReadOnlyCollection<int>? editableStudyIds)
     {
         var lines = new List<string>();
         using (var reader = new StreamReader(csvStream))
@@ -57,7 +57,7 @@ public class ShipmentService : IShipmentService
 
         var sampleTypes = await _context.SampleTypes.ToListAsync();
         int totalRequested = 0, totalAvailable = 0, totalNotFound = 0,
-            totalPreviouslyShipped = 0, totalDiscarded = 0, totalNotYetReceived = 0;
+            totalPreviouslyShipped = 0, totalDiscarded = 0, totalNotYetReceived = 0, totalNoAccess = 0;
 
         for (int i = startIndex; i < lines.Count; i++)
         {
@@ -96,6 +96,11 @@ public class ShipmentService : IShipmentService
             {
                 status = "Not Found";
                 totalNotFound++;
+            }
+            else if (editableStudyIds != null && !editableStudyIds.Contains(specimen.StudyID))
+            {
+                status = "No Access";
+                totalNoAccess++;
             }
             else if (specimen.Status == "Shipped")
             {
@@ -141,6 +146,7 @@ public class ShipmentService : IShipmentService
         batch.TotalPreviouslyShipped = totalPreviouslyShipped;
         batch.TotalDiscarded = totalDiscarded;
         batch.TotalNotYetReceived = totalNotYetReceived;
+        batch.TotalNoAccess = totalNoAccess;
 
         await _context.SaveChangesAsync();
 

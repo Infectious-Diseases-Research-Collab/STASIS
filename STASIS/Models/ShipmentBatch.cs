@@ -18,6 +18,7 @@ public class ShipmentBatch
     public int TotalPreviouslyShipped { get; set; }
     public int TotalDiscarded { get; set; }
     public int TotalNotYetReceived { get; set; }
+    public int TotalNoAccess { get; set; }
     public int? ApprovalID { get; set; }
     public Approval? Approval { get; set; }
     public string Status { get; set; } = "Pending Approval";

@@ -633,6 +633,9 @@ namespace STASIS.Migrations
                     b.Property<int>("TotalDiscarded")
                         .HasColumnType("integer");
 
+                    b.Property<int>("TotalNoAccess")
+                        .HasColumnType("integer");
+
                     b.Property<int>("TotalNotFound")
                         .HasColumnType("integer");
 
@@ -732,7 +735,7 @@ namespace STASIS.Migrations
 
                     b.ToTable("tbl_ShipmentRequests", null, t =>
                         {
-                            t.HasCheckConstraint("CK_ShipmentRequests_Status", "\"Status\" IN ('Pending', 'Staged', 'Shipped', 'Not Found', 'Previously Shipped', 'Discarded', 'Not Yet Received')");
+                            t.HasCheckConstraint("CK_ShipmentRequests_Status", "\"Status\" IN ('Pending', 'Staged', 'Shipped', 'Not Found', 'Previously Shipped', 'Discarded', 'Not Yet Received', 'No Access')");
                         });
                 });
 
