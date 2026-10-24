@@ -40,6 +40,10 @@ ScaffoldingReadMe.txt
 ~$*
 *~
 CodeCoverage/
+.DS_Store
+
+# Docs (plans, specs, diagrams) — not tracked in this repo
+docs/
 
 # MSBuild Binary and Structured Log
 *.binlog
