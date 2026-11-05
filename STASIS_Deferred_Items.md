@@ -1,6 +1,6 @@
 # STASIS Deferred & Pending Items
 
-**Last Updated:** October 22, 2026
+**Last Updated:** November 5, 2026
 **Purpose:** Track all items across all phases that were partially implemented or deferred. Use this as a checklist when returning to unfinished work.
 
 ---
@@ -15,6 +15,7 @@ These items have groundwork in place but need additional work to be fully functi
 - **What's missing:** No code connects `EmailSender` to the shipment workflow. After import, the system should email the availability report to Regulatory, the Requestor, and PIs.
 - **Where to implement:** `ShipmentService.cs` (after `ImportBatchFromCsvAsync`) or a new handler in `Shipments/Create.cshtml.cs`.
 - **Depends on:** A working SMTP configuration in `appsettings.json` or user secrets.
+- **Study access:** The emailed report must respect study-scoped access — leave out rows marked `No Access`, and don't send a recipient rows for studies they can't view (`IStudyAccessService`).
 
 ### 2. Whole-Box Shipping UI (Phase 4, item 4.8)
 
@@ -22,6 +23,7 @@ These items have groundwork in place but need additional work to be fully functi
 - **What's missing:** No UI to select "ship entire box" during the Ship action. The Ship form only handles individual specimen shipping from matched requests.
 - **Where to implement:** `Pages/Shipments/History.cshtml` (Ship form section) and `ShipmentService.ShipBatchAsync`.
 - **Behavior:** When shipping an entire box, all specimens in that box should be marked Shipped, and `IsEntireBox = true` / `ShippedBoxID` should be set on the Shipment record.
+- **Study access:** Require `CanEditAsync` on the box's `StudyID`, and refuse boxes with a NULL `StudyID` that hold more than one study's specimens — the same rule Move and Rebox enforce.
 
 ### 3. Staging Status for Specimens (Phase 4, item 4.6)
 
@@ -35,11 +37,6 @@ These items have groundwork in place but need additional work to be fully functi
 - **What's missing:** No validation to detect when a Plasma specimen is the **last remaining aliquot** and require a SingleAliquotException approval before shipping.
 - **Where to implement:** `ShipmentService.ValidateShipmentAsync` — query for sibling aliquots; if no other aliquot is In-Stock, require exception approval.
 
-### 5. Automated Tests (Phase 7, item 7.6)
-
-- **What exists:** Test guide with priority scenarios and sample code in `STASIS_Test_Plan.md`.
-- **What's missing:** No xUnit test project created yet. No tests coded.
-- **Where to implement:** Create `STASIS.Tests` project per guide in manual testing doc.
 
 ### 6. Batch Add — Rich Success Summary (Batch Entry feature)
 
@@ -61,23 +58,13 @@ These items have groundwork in place but need additional work to be fully functi
 
 ### 9. Study-scoped Visit Types (Add Sample page)
 
-- **Box half: resolved (2026-10-22).** `Box` now has a `StudyID` column (added for the study-access-control work; see `docs/superpowers/specs/2026-10-21-study-scoped-access-control-design.md`), and `Pages/Samples/Add.cshtml.cs`/`.cshtml` now filter the Box dropdown to boxes already claimed by the selected study plus genuinely unassigned ones, refreshed via a new `OnGetBoxesForStudyAsync` AJAX handler when the study selection changes. Boxes belonging to a different, non-empty study are correctly excluded. Mixing specimens from different studies into one box is also now blocked (`IStorageService.ValidateAndAssignBoxStudyAsync`), closing the underlying data-integrity bug this item originally flagged.
-- **Visit Type half: still open.** `VisitType` has no `StudyID` column. All visit types still appear in the Add Sample dropdown regardless of which study is selected.
+- **Box half: resolved (2026-10-22).** `Box` now has a `StudyID` column (added by the study-scoped access control work), and `Pages/Samples/Add.cshtml.cs`/`.cshtml` now filter the Box dropdown to boxes already claimed by the selected study plus genuinely unassigned ones, refreshed via a new `OnGetBoxesForStudyAsync` AJAX handler when the study selection changes. Boxes belonging to a different, non-empty study are correctly excluded. Mixing specimens from different studies into one box is also now blocked (`IStorageService.ValidateAndAssignBoxStudyAsync`), closing the underlying data-integrity bug this item originally flagged.
+- **Visit Type half: still open.** `VisitType` has no `StudyID` column — visit types are one global list shared by every study, and all of them appear in the Add Sample dropdown regardless of which study is selected. This is not an access leak (visit types are reference data, not study data). As of 2026-11-05 the dev database has no visit types and no specimen references one, so existing data can't settle the open question below.
 - **What's missing:** When a study is selected, the Visit Type dropdown should be filtered to only show visit types relevant to that study.
 - **Agreed approach:** Schema change — add a `StudyID` FK to `tbl_VisitTypes`, configure the association in `LabSetup/VisitTypes`, then filter dynamically on the Add Sample page via an AJAX call when the study changes (mirroring the pattern now used for boxes).
 - **Open question before implementing:** does a visit type belong to one study only, or can the same visit type (e.g. "Baseline") be shared across multiple studies?
 - **Where to implement:** EF migration to add `StudyID` FK to `tbl_VisitTypes`, update `LabSetup/VisitTypes` to associate records with a study, add an `OnGetVisitTypesForStudyAsync` AJAX handler to `Add.cshtml.cs` (same shape as the new `OnGetBoxesForStudyAsync`), update `Add.cshtml` JS to re-filter the Visit Type dropdown on study change.
 
-### 10. Filter Paper Binder box renders as a 9×9 grid on Boxes/Search, and never shows its specimens
-
-- **What exists:** `Boxes/Search.cshtml.cs GetGridSize()` returns 9 for `"81-slot"` and also for any unrecognized box type (the `_ => 9` default), which silently includes `"Filter Paper Binder"`. The real FP Binder layout is linear (100 slots, single column) per `SampleService.GetNextAvailablePosition`.
-- **Impact:** Worse than a wrong grid shape — `Search.cshtml`'s `specimenMap` is built from `box.Specimens.Where(s => s.PositionRow.HasValue && s.PositionCol.HasValue)`, but FP specimens always have `PositionCol == null` (linear placement). So no FP specimen ever appears in the grid view, regardless of grid shape.
-- **Where to implement:** `Pages/Boxes/Search.cshtml.cs GetGridSize()` — add an explicit `"Filter Paper Binder"` case (100 slots, 1 column, linear). `Pages/Boxes/Search.cshtml` — render FP Binder boxes as a single-column list keyed on `PositionRow` alone, not the `(row, col)` grid lookup.
-
-### 11. "View" button on Boxes/Search page not working
-
-- **Reported:** 2026-10-21, not yet diagnosed. Clicking "View" in the box results table (`Pages/Boxes/Search.cshtml`, the `asp-route-selectedBoxId` link) does not show the box detail/grid section.
-- **Where to look:** `Pages/Boxes/Search.cshtml` View link and `SearchModel.OnGetAsync` — static read-through didn't surface an obvious cause; needs to be reproduced and debugged directly (possibly related to item 10's FP Binder handling, possibly separate).
 
 ---
 
@@ -93,6 +80,9 @@ These items have groundwork in place but need additional work to be fully functi
 | Search performance indexes | Phase 7 | Migration `AddSearchPerformanceIndexes` adds indexes on Status, StudyID, SampleTypeID |
 | Backup/restore procedures | Phase 7 | Documented in `STASIS_Test_Plan.md` |
 | Deployment checklist | Phase 7 | Documented in `STASIS_Test_Plan.md` |
+| Automated tests (was item 5) | Phase 7 | `STASIS.Tests` xUnit project added with the study-scoped access control work (unit, service, migration, integration and IDOR tests); see README "Running the tests" |
+| Filter Paper Binder rendered as a 9×9 grid on Boxes/Search (was item 10) | — | Binders now render as a numbered linear slot list keyed on `PositionRow` (100 slots, growing for legacy binders past 100); specimen list shows "Slot N" |
+| "View" button on Boxes/Search appeared to do nothing (was item 11) | — | It worked, but the detail section rendered below the results list without scrolling; the View link now jumps to `#box-detail` |
 
 ---
 
@@ -113,9 +103,8 @@ These items require manual verification and are documented in `STASIS_Test_Plan.
 
 If returning to this list, the recommended order is:
 
-1. **Automated tests** (item 5) — safety net before any further changes
-2. **Single aliquot exception** (item 4) — governance-critical edge case
-3. **Email distribution** (item 1) — depends on SMTP setup
-4. **Whole-box shipping** (item 2) — nice-to-have refinement
-5. **Staging status** (item 3) — workflow refinement
-6. **Manual testing** — run through checklists in `STASIS_Test_Plan.md`
+1. **Single aliquot exception** (item 4) — governance-critical edge case
+2. **Email distribution** (item 1) — depends on SMTP setup
+3. **Whole-box shipping** (item 2) — nice-to-have refinement
+4. **Staging status** (item 3) — workflow refinement
+5. **Manual testing** — run through checklists in `STASIS_Test_Plan.md`
