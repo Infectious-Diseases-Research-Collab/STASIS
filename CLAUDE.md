@@ -16,6 +16,7 @@ dotnet build STASIS.sln                 # Compile and catch errors
 dotnet run --project STASIS.csproj      # Run the app
 dotnet watch run --project STASIS.csproj  # Run with hot reload
 dotnet user-secrets list                # Verify secrets are set
+dotnet test STASIS.sln                  # Run tests (needs STASIS_TEST_CONNECTION, see README)
 ```
 
 EF Core migrations (once adopted as source of truth):
@@ -74,8 +75,8 @@ dotnet ef database update --project STASIS.csproj
 
 ### Key Patterns
 
-- **Authentication/Authorization:** All routes require authentication via a fallback policy. `PasswordChangeFilter` forces a password change on first login. Roles: `Read`, `Write`, `Admin`.
-- **Data access:** Services (`ISampleService`, `IStorageService`) are injected into page models; never call `DbContext` directly from page models.
+- **Authentication/Authorization:** All routes require authentication via a fallback policy. `PasswordChangeFilter` forces a password change on first login. Access is study-scoped: the global Identity role `Admin` marks a System Admin (sees and manages every study); everyone else gets per-study rows in `tbl_UserStudyAccess` with a role of `Viewer`, `Editor`, or `StudyAdmin`. All permission checks go through `IStudyAccessService` (`CanViewAsync`, `CanEditAsync`, `CanManageStudyAsync`, `GetVisibleStudyIdsAsync`), and every handler must enforce them server-side per study, not just in the UI. A study must always keep at least one `StudyAdmin`. The old global `Read`/`Write` roles are retired.
+- **Data access:** Services (`ISampleService`, `IStorageService`, `IStudyAccessService`) are injected into page models; never call `DbContext` directly from page models.
 - **Naming:** Tables use `tbl_` prefix (e.g., `tbl_Specimens`). EF entities are mapped explicitly in `OnModelCreating`. Check constraints and unique indexes are defined there.
 - **Storage hierarchy:** `Freezer → Compartment → Rack → Box → Specimen (PositionRow/PositionCol)`. A unique index on `(BoxID, PositionRow, PositionCol)` enforces conflict detection at the DB level. Compartments have a unique index on `(FreezerID, CompartmentName)`.
 - **Special sample rules:** Filter Paper specimens track `RemainingSpots`, `SpotsShippedInternational`, `SpotsReservedLocal`. Plasma specimens use `AliquotNumber` (1, 2, or 3). These rules are domain-critical but mostly unimplemented in services.

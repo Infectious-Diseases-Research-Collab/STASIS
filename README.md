@@ -76,7 +76,7 @@ On Windows the default PostgreSQL superuser is `postgres`. On macOS you can subs
    ```
    This prompts for the `stasis_app` password — the one you set in `Database/00_STASIS_create_db_user.sql`.
 
-4. **(Optional) Insert fake data**: seeds the Identity roles (`Admin`, `Write`, `Read`), sample studies, visit types, sample types, freezers, and other reference/test data — useful if you want a populated database to develop against instead of an empty one:
+4. **(Optional) Insert fake data**: seeds the Identity `Admin` role, sample studies, visit types, sample types, freezers, and other reference/test data — useful if you want a populated database to develop against instead of an empty one:
    ```bash
    psql -U stasis_app -d stasis -f Database/02_STASIS_insert_fake_data.sql
    ```
@@ -123,7 +123,7 @@ psql -U stasis_app -d stasis -f Database/mark_initial_migration.sql
 
 This file is already included in the repository at `Database/mark_initial_migration.sql`.
 
-**Keeping this in sync:** the `MigrationId` values above must exactly match the migration file names in `Migrations/` (e.g. `Migrations/20260408121640_InitialCreate.cs`). If a new migration is added to the project later, this script (and the inline SQL above) must be updated to include it too — otherwise `dotnet ef database update` will think the new migration (and anything after it) was never applied, and will try to re-run it against a database that already has those changes from the bootstrap script, causing errors or dropped tables.
+**Keeping this in sync:** the `MigrationId` values above must exactly match the migration file names in `Migrations/` (e.g. `Migrations/20260408121640_InitialCreate.cs`). This script must list exactly the migrations whose schema changes are already in `Database/01_STASIS_create_tables_postgres.sql`. If a later migration's changes are also folded into that bootstrap script, add the migration here too — otherwise `dotnet ef database update` will think the new migration (and anything after it) was never applied, and will try to re-run it against a database that already has those changes from the bootstrap script, causing errors or dropped tables. Migrations that are **not** in the bootstrap script (for example `AddUserStudyAccess`, `AddBoxStudyID`, and `BackfillBoxStudyId`) must stay off this list, so `dotnet ef database update` applies them.
 
 
 ### 3. Configure the application
@@ -183,6 +183,29 @@ dotnet dev-certs https --trust
 ```
 
 On Windows this pops a confirmation dialog to add the certificate to your trusted root store — accept it, then restart the app.
+
+### Running the tests
+
+Most tests in `STASIS.Tests` are integration tests that run against a real PostgreSQL database. They wipe and re-create that database on every run, so give them a dedicated, throwaway one — **never** point them at your `stasis` development database.
+
+1. Create the test database (owned by the same `stasis_app` role):
+   ```bash
+   createdb -O stasis_app stasis_test
+   ```
+2. Set `STASIS_TEST_CONNECTION` to its connection string. On macOS/Linux:
+   ```bash
+   export STASIS_TEST_CONNECTION="Host=localhost;Port=5432;Database=stasis_test;Username=stasis_app;Password=YOUR_PASSWORD"
+   ```
+   On Windows PowerShell:
+   ```powershell
+   $env:STASIS_TEST_CONNECTION = "Host=localhost;Port=5432;Database=stasis_test;Username=stasis_app;Password=YOUR_PASSWORD"
+   ```
+3. Run the suite from the repository root:
+   ```bash
+   dotnet test STASIS.sln
+   ```
+
+If `STASIS_TEST_CONNECTION` is not set, the database-backed tests fail at startup with an error explaining what to set.
 
 ## 6. Developer Smoke Test Checklist
 
