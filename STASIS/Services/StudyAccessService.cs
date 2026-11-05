@@ -74,6 +74,18 @@ public class StudyAccessService : IStudyAccessService
         return await GetRoleAsync(userId, studyId) >= StudyRole.Editor;
     }
 
+    public async Task<bool> CanApproveShipmentsAsync(string userId)
+    {
+        if (await IsSystemAdminAsync(userId))
+        {
+            return true;
+        }
+
+        return await _context.UserProfiles
+            .AsNoTracking()
+            .AnyAsync(p => p.AspNetUserId == userId && p.CanApproveShipments);
+    }
+
     public async Task<bool> CanManageStudyAsync(string userId, int studyId)
     {
         if (await IsSystemAdminAsync(userId))

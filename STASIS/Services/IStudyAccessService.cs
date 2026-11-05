@@ -11,6 +11,10 @@ public interface IStudyAccessService
     Task<bool> CanEditAsync(string userId, int studyId); // Editor or StudyAdmin or System Admin
     Task<bool> CanManageStudyAsync(string userId, int studyId); // StudyAdmin or System Admin
 
+    // Account-wide (not study-scoped): System Admin, or the "Can Approve Shipments" flag on the
+    // user's profile. Callers must still check the user can view the batch's studies.
+    Task<bool> CanApproveShipmentsAsync(string userId);
+
     // Every UserStudyAccess row in the system, each with its Study navigation populated.
     // Lets page models (e.g. Administration/Users) build per-user study-access lists without
     // calling StasisDbContext directly, per this codebase's "services only" data-access rule.

@@ -84,6 +84,7 @@ These items have groundwork in place but need additional work to be fully functi
 | Filter Paper Binder rendered as a 9×9 grid on Boxes/Search (was item 10) | — | Binders now render as a numbered linear slot list keyed on `PositionRow` (100 slots, growing for legacy binders past 100); specimen list shows "Slot N" |
 | "View" button on Boxes/Search appeared to do nothing (was item 11) | — | It worked, but the detail section rendered below the results list without scrolling; the View link now jumps to `#box-detail` |
 | "Forgot password" returned a 500 and revealed which emails had accounts; admin reset hid its errors and skipped the forced change for users without a profile (was item 12) | — | Decided on admin-only resets (2026-11-05). Forgot/Reset Password pages now return 404, the login page says to contact a STASIS administrator, and the Edit User reset shows success/error banners and always sets `MustChangePassword`. If self-service resets are wanted later, set up SMTP with item 1 and make Forgot Password show the same message whether or not the account exists |
+| Shipments/History had no access checks | — | Fixed 2026-11-05. Any logged-in user could list every batch, download any manifest, record approvals and ship batches. Now viewing a batch or manifest needs view access to every study in it (404 otherwise), approving needs "Can Approve Shipments" or System Admin (the flag was previously never checked), shipping needs Editor on every study in the batch, and `ValidateShipmentAsync` refuses batches that aren't Approved |
 
 ---
 

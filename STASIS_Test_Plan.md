@@ -445,6 +445,11 @@
 - [ ] **TC-APR-08:** Verify approval comments are stored and displayed.
 - [ ] **TC-APR-09:** Verify an audit entry is created for each approval action.
 
+### 11.3 Who Can Approve
+
+- [ ] **TC-APR-10:** As a user without "Can Approve Shipments" (and not a System Admin), open a batch you can view — verify the approval form is not shown.
+- [ ] **TC-APR-11:** Turn on "Can Approve Shipments" for that user under Administration → Edit User — verify the approval form now appears and an approval can be recorded.
+
 ---
 
 ## 12. Shipment Workflow — Ship & Manifest
@@ -460,12 +465,15 @@
 - [ ] **TC-SHIP-05:** Verify ShipmentContent records are created for each shipped specimen.
 - [ ] **TC-SHIP-06:** Verify the batch Status changes to "Shipped".
 - [ ] **TC-SHIP-07:** Verify an audit entry is created for the shipment.
+- [ ] **TC-SHIP-07a:** As a Viewer on the batch's study, open an Approved batch — verify the Ship form is not shown.
+- [ ] **TC-SHIP-07b:** As an Editor on only one of the studies in a mixed-study batch, verify the batch doesn't appear in the list and opening it by URL (`?BatchId=N`) returns 404.
 
 ### 12.2 Manifest Download
 
 - [ ] **TC-SHIP-08:** After shipping, click the manifest download link — verify a CSV file is downloaded.
 - [ ] **TC-SHIP-09:** Verify the manifest CSV contains: Barcode, SampleType, ConditionAtShipment, ShippingBoxPosition, SpotsUsed.
 - [ ] **TC-SHIP-10:** Verify the downloaded file name and content type are correct.
+- [ ] **TC-SHIP-10a:** As a user with no access to the batch's studies, open the manifest URL directly — verify it returns 404.
 
 ### 12.3 History Page
 
