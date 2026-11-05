@@ -9,14 +9,16 @@ public class SampleService : ISampleService
 {
     private readonly StasisDbContext _context;
     private readonly IAuditService _auditService;
+    private readonly IStorageService _storageService;
 
-    public SampleService(StasisDbContext context, IAuditService auditService)
+    public SampleService(StasisDbContext context, IAuditService auditService, IStorageService storageService)
     {
         _context = context;
         _auditService = auditService;
+        _storageService = storageService;
     }
 
-    public async Task<(List<Specimen> Specimens, int TotalCount)> GetSpecimensAsync(string? searchString, int? studyId, int? sampleTypeId, string? participantId, int pageIndex, int pageSize)
+    public async Task<(List<Specimen> Specimens, int TotalCount)> GetSpecimensAsync(string? searchString, int? studyId, int? sampleTypeId, string? participantId, int pageIndex, int pageSize, IReadOnlyCollection<int>? visibleStudyIds)
     {
         var query = _context.Specimens
             .Include(s => s.Study)
@@ -29,12 +31,18 @@ public class SampleService : ISampleService
 
         if (!string.IsNullOrEmpty(searchString))
         {
-            query = query.Where(s => s.BarcodeID.Contains(searchString));
+            var upperSearch = searchString.ToUpperInvariant();
+            query = query.Where(s => s.BarcodeID.Contains(upperSearch));
         }
 
         if (studyId.HasValue)
         {
             query = query.Where(s => s.StudyID == studyId.Value);
+        }
+
+        if (visibleStudyIds != null)
+        {
+            query = query.Where(s => visibleStudyIds.Contains(s.StudyID));
         }
 
         if (sampleTypeId.HasValue)
@@ -56,9 +64,16 @@ public class SampleService : ISampleService
         return (specimens, totalCount);
     }
 
-    public async Task<List<Study>> GetAllStudies()
+    public async Task<List<Study>> GetAllStudies(IReadOnlyCollection<int>? visibleStudyIds)
     {
-        return await _context.Studies.OrderBy(s => s.StudyCode).ToListAsync();
+        var query = _context.Studies.AsQueryable();
+
+        if (visibleStudyIds != null)
+        {
+            query = query.Where(s => visibleStudyIds.Contains(s.StudyID));
+        }
+
+        return await query.OrderBy(s => s.StudyCode).ToListAsync();
     }
 
     public async Task<List<SampleType>> GetAllSampleTypes()
@@ -136,6 +151,15 @@ public class SampleService : ISampleService
         {
             foreach (var specimen in specimenList)
             {
+                // Validate (and, if the box is unclaimed, assign) the box's study affiliation
+                // before adding the specimen, so a mismatch throws before anything is written --
+                // the bare `catch` below rolls back the whole transaction either way, including
+                // this InvalidOperationException, mirroring StorageService.MoveSpecimenAsync/
+                // ReboxSpecimensAsync.
+                if (specimen.BoxID.HasValue)
+                {
+                    await _storageService.ValidateAndAssignBoxStudyAsync(specimen.BoxID.Value, specimen.StudyID);
+                }
                 _context.Specimens.Add(specimen);
             }
             await _context.SaveChangesAsync();
@@ -195,8 +219,9 @@ public class SampleService : ISampleService
             "Deleted", name, null, userId);
     }
 
-    public async Task<Specimen?> GetSpecimenByBarcode(string barcode)
+    public async Task<List<Specimen>> GetSpecimensByBarcode(string barcode)
     {
+        barcode = barcode.Trim().ToUpperInvariant();
         return await _context.Specimens
             .Include(s => s.Study)
             .Include(s => s.SampleType)
@@ -204,12 +229,14 @@ public class SampleService : ISampleService
             .ThenInclude(b => b!.Rack)
             .ThenInclude(r => r!.Compartment)
             .ThenInclude(c => c!.Freezer)
-            .FirstOrDefaultAsync(s => s.BarcodeID == barcode);
+            .Where(s => s.BarcodeID == barcode)
+            .ToListAsync();
     }
 
-    public async Task<bool> IsBarcodeTaken(string barcode)
+    public async Task<bool> IsBarcodeTaken(string barcode, int studyId)
     {
-        return await _context.Specimens.AnyAsync(s => s.BarcodeID == barcode);
+        barcode = barcode.Trim().ToUpperInvariant();
+        return await _context.Specimens.AnyAsync(s => s.BarcodeID == barcode && s.StudyID == studyId);
     }
 
     public async Task<List<(int Row, int Col)>> GetOccupiedPositions(int boxId)
@@ -242,7 +269,7 @@ public class SampleService : ISampleService
         }
     }
 
-    public async Task<ImportResult> ImportSpecimensFromCsv(Stream csvStream)
+    public async Task<ImportResult> ImportSpecimensFromCsv(Stream csvStream, IReadOnlyCollection<int>? editableStudyIds)
     {
         var result = new ImportResult();
         var lines = new List<string>();
@@ -266,13 +293,15 @@ public class SampleService : ISampleService
         var studies = await _context.Studies.ToListAsync();
         var sampleTypes = await _context.SampleTypes.ToListAsync();
         var boxes = await _context.Boxes.ToListAsync();
-        var existingBarcodes = await _context.Specimens
-            .Select(s => s.BarcodeID)
+        var existingKeys = await _context.Specimens
+            .Select(s => new { s.StudyID, s.BarcodeID })
             .ToListAsync();
-        var existingBarcodeSet = new HashSet<string>(existingBarcodes, StringComparer.OrdinalIgnoreCase);
+        var existingBarcodeSet = existingKeys
+            .Select(k => (k.StudyID, k.BarcodeID))
+            .ToHashSet();
 
-        // Track barcodes within this import to detect intra-file duplicates
-        var importBarcodes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        // Track (StudyID, BarcodeID) pairs within this import to detect intra-file duplicates
+        var importBarcodes = new HashSet<(int, string)>();
 
         // Track positions claimed within this import
         var claimedPositions = new HashSet<string>();
@@ -289,7 +318,7 @@ public class SampleService : ISampleService
                 continue;
             }
 
-            importRow.BarcodeID = row[0].Trim();
+            importRow.BarcodeID = row[0].Trim().ToUpperInvariant();
             importRow.LegacyID = row.Length > 1 ? row[1].Trim() : null;
             importRow.StudyCode = row.Length > 2 ? row[2].Trim() : null;
             importRow.SampleType = row.Length > 3 ? row[3].Trim() : null;
@@ -300,34 +329,50 @@ public class SampleService : ISampleService
             importRow.ParticipantID = row.Length > 8 ? row[8].Trim() : null;
             importRow.CellCount = row.Length > 9 ? row[9].Trim() : null;
 
-            // Validate barcode uniqueness
-            if (existingBarcodeSet.Contains(importRow.BarcodeID))
+            // Resolve study (required)
+            if (string.IsNullOrEmpty(importRow.StudyCode))
             {
-                importRow.Error = $"Barcode '{importRow.BarcodeID}' already exists in the database.";
+                importRow.Error = "StudyCode is required.";
                 result.ErrorRows.Add(importRow);
                 continue;
             }
 
-            if (!importBarcodes.Add(importRow.BarcodeID))
+            var study = studies.FirstOrDefault(s =>
+                s.StudyCode.Equals(importRow.StudyCode, StringComparison.OrdinalIgnoreCase));
+            if (study == null)
             {
-                importRow.Error = $"Duplicate barcode '{importRow.BarcodeID}' within this import file.";
+                importRow.Error = $"Study code '{importRow.StudyCode}' not found.";
+                result.ErrorRows.Add(importRow);
+                continue;
+            }
+            int studyId = study.StudyID;
+
+            // Per-row access check: the caller must hold Editor-or-above access to this row's
+            // study. editableStudyIds == null means unrestricted (System Admin). This mirrors
+            // the write-side access enforcement already applied to Samples/Add -- CSV import is
+            // just another write path, so a row targeting a study the caller cannot edit is
+            // rejected the same way a bad barcode or box label is: added to ErrorRows, import
+            // continues with the next row.
+            if (editableStudyIds != null && !editableStudyIds.Contains(studyId))
+            {
+                importRow.Error = $"You do not have edit access to study '{importRow.StudyCode}'.";
                 result.ErrorRows.Add(importRow);
                 continue;
             }
 
-            // Resolve study
-            int? studyId = null;
-            if (!string.IsNullOrEmpty(importRow.StudyCode))
+            // Validate barcode uniqueness within this study
+            if (existingBarcodeSet.Contains((studyId, importRow.BarcodeID)))
             {
-                var study = studies.FirstOrDefault(s =>
-                    s.StudyCode.Equals(importRow.StudyCode, StringComparison.OrdinalIgnoreCase));
-                if (study == null)
-                {
-                    importRow.Error = $"Study code '{importRow.StudyCode}' not found.";
-                    result.ErrorRows.Add(importRow);
-                    continue;
-                }
-                studyId = study.StudyID;
+                importRow.Error = $"Barcode '{importRow.BarcodeID}' already exists in study '{importRow.StudyCode}'.";
+                result.ErrorRows.Add(importRow);
+                continue;
+            }
+
+            if (!importBarcodes.Add((studyId, importRow.BarcodeID)))
+            {
+                importRow.Error = $"Duplicate barcode '{importRow.BarcodeID}' for study '{importRow.StudyCode}' within this import file.";
+                result.ErrorRows.Add(importRow);
+                continue;
             }
 
             // Resolve sample type
@@ -424,7 +469,7 @@ public class SampleService : ISampleService
             {
                 BarcodeID = importRow.BarcodeID,
                 LegacyID = string.IsNullOrEmpty(importRow.LegacyID) ? null : importRow.LegacyID,
-                StudyID = studyId,
+                StudyID = studyId, // now int (required)
                 SampleTypeID = sampleTypeId,
                 CollectionDate = collectionDate,
                 BoxID = boxId,
@@ -611,11 +656,11 @@ public class SampleService : ISampleService
             .ToListAsync();
     }
 
-    public async Task<List<string>> GetTakenBarcodesAsync(IEnumerable<string> barcodes)
+    public async Task<List<string>> GetTakenBarcodesAsync(IEnumerable<string> barcodes, int studyId)
     {
-        var list = barcodes.ToList();
+        var list = barcodes.Select(b => b.Trim().ToUpperInvariant()).ToList();
         return await _context.Specimens
-            .Where(s => list.Contains(s.BarcodeID))
+            .Where(s => s.StudyID == studyId && list.Contains(s.BarcodeID))
             .Select(s => s.BarcodeID)
             .ToListAsync();
     }

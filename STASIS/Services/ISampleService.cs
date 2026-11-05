@@ -4,22 +4,35 @@ namespace STASIS.Services;
 
 public interface ISampleService
 {
-    Task<(List<Specimen> Specimens, int TotalCount)> GetSpecimensAsync(string? searchString, int? studyId, int? sampleTypeId, string? participantId, int pageIndex, int pageSize);
-    Task<List<Study>> GetAllStudies();
+    // visibleStudyIds: null = unrestricted (System Admin), otherwise the caller's exact set of
+    // assigned study ids (per IStudyAccessService.GetVisibleStudyIdsAsync) -- results are
+    // filtered to that set. Pass once-resolved sets here rather than calling CanViewAsync per
+    // row, to avoid an N+1 DB+Identity round-trip per specimen/study.
+    Task<(List<Specimen> Specimens, int TotalCount)> GetSpecimensAsync(string? searchString, int? studyId, int? sampleTypeId, string? participantId, int pageIndex, int pageSize, IReadOnlyCollection<int>? visibleStudyIds);
+    Task<List<Study>> GetAllStudies(IReadOnlyCollection<int>? visibleStudyIds);
     Task<List<SampleType>> GetAllSampleTypes();
-    Task<Specimen?> GetSpecimenByBarcode(string barcode);
-    Task<bool> IsBarcodeTaken(string barcode);
+    Task<List<Specimen>> GetSpecimensByBarcode(string barcode);
+    Task<bool> IsBarcodeTaken(string barcode, int studyId);
     Task<List<(int Row, int Col)>> GetOccupiedPositions(int boxId);
     Task AddSpecimen(Specimen specimen);
     Task<List<VisitType>> GetAllVisitTypes();
     Task<(int Row, int? Col)?> GetNextAvailablePosition(int boxId, IEnumerable<(int Row, int? Col)>? claimedPositions = null);
+    // For each specimen with a BoxID, validates (and, if the box is unclaimed, assigns) the
+    // box's study affiliation via IStorageService.ValidateAndAssignBoxStudyAsync before writing
+    // it -- a box already holding a different study's specimens throws InvalidOperationException,
+    // which rolls back the whole batch (same transaction as the rest of this method).
     Task AddSpecimensBatch(IEnumerable<Specimen> specimens, string userId);
     Task AddVisitType(string name, string userId);
     Task UpdateVisitType(int id, string name, string userId);
     Task DeleteVisitType(int id, string userId);
     Task UpdateSpecimen(Specimen specimen);
     Task DeleteSpecimen(int id);
-    Task<ImportResult> ImportSpecimensFromCsv(Stream csvStream);
+    // editableStudyIds: null = unrestricted (System Admin), otherwise the caller's exact set of
+    // studies they hold Editor-or-above access to (see Pages/Samples/Import.cshtml.cs for how
+    // that set is resolved). A row whose resolved study is outside this set is added to
+    // ErrorRows instead of SuccessRows, same continue-on-error pattern as every other per-row
+    // validation in this method.
+    Task<ImportResult> ImportSpecimensFromCsv(Stream csvStream, IReadOnlyCollection<int>? editableStudyIds);
 
     // Discard workflow
     Task<Approval> RequestDiscardAsync(List<int> specimenIds, string userId);
@@ -35,8 +48,8 @@ public interface ISampleService
     // Filter paper usage history
     Task<List<FilterPaperUsage>> GetFilterPaperUsageAsync(int specimenId);
 
-    // Batch barcode uniqueness check
-    Task<List<string>> GetTakenBarcodesAsync(IEnumerable<string> barcodes);
+    // Batch barcode uniqueness check (scoped to a study)
+    Task<List<string>> GetTakenBarcodesAsync(IEnumerable<string> barcodes, int studyId);
 }
 
 public class ImportResult

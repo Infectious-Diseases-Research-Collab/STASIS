@@ -10,11 +10,15 @@
 {
     <div class="alert alert-success alert-dismissible fade show">@TempData["Success"]<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
 }
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-danger alert-dismissible fade show">@TempData["Error"]<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
+}
 
 @if (Model.ShipmentErrors.Any())
 {
     <div class="alert alert-danger">
-        <strong>Shipment blocked by sample rules:</strong>
+        <strong>Shipment blocked:</strong>
         <ul class="mb-0 mt-1">
             @foreach (var err in Model.ShipmentErrors)
             {
@@ -27,7 +31,7 @@
 <h5>All Batches</h5>
 @if (!Model.Batches.Any())
 {
-    <p class="text-muted">No shipment batches imported yet.</p>
+    <p class="text-muted">No shipment batches you have access to.</p>
 }
 else
 {
@@ -146,7 +150,7 @@ else
             </div>
         }
 
-        @if (approval != null && batch.Status != "Shipped" && batch.Status != "Rejected")
+        @if (approval != null && Model.CanApproveSelected && batch.Status != "Shipped" && batch.Status != "Rejected")
         {
             <div class="col-md-4">
                 <h6>Record Approval</h6>
@@ -175,7 +179,7 @@ else
         }
     </div>
 
-    @if (batch.Status == "Approved" && batch.TotalAvailable > 0)
+    @if (batch.Status == "Approved" && batch.TotalAvailable > 0 && Model.CanShipSelected)
     {
         <h5>Ship This Batch</h5>
         <form method="post" asp-page-handler="Ship" class="mb-4" style="max-width:700px;">

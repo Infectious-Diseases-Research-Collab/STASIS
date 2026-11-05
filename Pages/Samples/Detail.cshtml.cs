@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using STASIS.Models;
@@ -8,10 +9,12 @@ namespace STASIS.Pages.Samples
     public class DetailModel : PageModel
     {
         private readonly ISampleService _sampleService;
+        private readonly IStudyAccessService _studyAccessService;
 
-        public DetailModel(ISampleService sampleService)
+        public DetailModel(ISampleService sampleService, IStudyAccessService studyAccessService)
         {
             _sampleService = sampleService;
+            _studyAccessService = studyAccessService;
         }
 
         [BindProperty(SupportsGet = true)]
@@ -28,6 +31,10 @@ namespace STASIS.Pages.Samples
         {
             Specimen = await _sampleService.GetSpecimenDetailAsync(Id);
             if (Specimen == null)
+                return NotFound();
+
+            var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? string.Empty;
+            if (!await _studyAccessService.CanViewAsync(currentUserId, Specimen.StudyID))
                 return NotFound();
 
             if (IsFilterPaper)

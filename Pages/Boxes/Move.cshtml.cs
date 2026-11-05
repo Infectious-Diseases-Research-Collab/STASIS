@@ -1,5 +1,4 @@
 using System.Security.Claims;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.Rendering;
@@ -9,22 +8,23 @@ using STASIS.Services;
 
 namespace STASIS.Pages.Boxes
 {
-    [Authorize(Roles = "Write,Admin")]
     public class MoveModel : PageModel
     {
         private readonly ISampleService _sampleService;
         private readonly IStorageService _storageService;
+        private readonly IStudyAccessService _studyAccessService;
 
-        public MoveModel(ISampleService sampleService, IStorageService storageService)
+        public MoveModel(ISampleService sampleService, IStorageService storageService, IStudyAccessService studyAccessService)
         {
             _sampleService = sampleService;
             _storageService = storageService;
+            _studyAccessService = studyAccessService;
         }
 
         [BindProperty(SupportsGet = true)]
         public string? Barcode { get; set; }
 
-        [BindProperty]
+        [BindProperty(SupportsGet = true)]
         public int? SpecimenId { get; set; }
 
         [BindProperty]
@@ -40,31 +40,95 @@ namespace STASIS.Pages.Boxes
         public bool MoveToTemp { get; set; }
 
         public Specimen? FoundSpecimen { get; set; }
+        public List<Specimen> AmbiguousSpecimens { get; set; } = new();
         public SelectList BoxOptions { get; set; } = new SelectList(Enumerable.Empty<object>());
 
         public async Task OnGetAsync()
         {
-            if (!string.IsNullOrEmpty(Barcode))
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
+
+            if (SpecimenId.HasValue)
             {
-                FoundSpecimen = await _sampleService.GetSpecimenByBarcode(Barcode);
+                FoundSpecimen = await _sampleService.GetSpecimenDetailAsync(SpecimenId.Value);
+
+                // A specimen in a study the caller cannot even view must not be revealed to
+                // exist via this lookup -- treat it the same as "not found" rather than
+                // rendering its details, same guard as Pages/Samples/Detail.cshtml.cs.
+                if (FoundSpecimen != null && !await _studyAccessService.CanViewAsync(userId, FoundSpecimen.StudyID))
+                {
+                    FoundSpecimen = null;
+                }
             }
-            await LoadBoxOptionsAsync();
+            else if (!string.IsNullOrEmpty(Barcode))
+            {
+                var matches = await _sampleService.GetSpecimensByBarcode(Barcode);
+
+                var visibleMatches = new List<Specimen>();
+                foreach (var specimen in matches)
+                {
+                    if (await _studyAccessService.CanViewAsync(userId, specimen.StudyID))
+                    {
+                        visibleMatches.Add(specimen);
+                    }
+                }
+
+                if (visibleMatches.Count == 1)
+                    FoundSpecimen = visibleMatches[0];
+                else if (visibleMatches.Count > 1)
+                    AmbiguousSpecimens = visibleMatches;
+            }
+
+            await LoadBoxOptionsAsync(userId);
         }
 
         public async Task<IActionResult> OnPostMoveAsync()
         {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
+
             if (SpecimenId == null)
             {
                 ModelState.AddModelError(string.Empty, "No specimen selected.");
-                await LoadBoxOptionsAsync();
+                await LoadBoxOptionsAsync(userId);
                 return Page();
             }
 
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
+            var specimen = await _sampleService.GetSpecimenDetailAsync(SpecimenId.Value);
+            if (specimen == null)
+            {
+                ModelState.AddModelError(string.Empty, "Specimen not found.");
+                await LoadBoxOptionsAsync(userId);
+                return Page();
+            }
+
+            // Re-validate CanEditAsync against the specimen's current StudyID before calling
+            // into IStorageService -- this is the access check; the box/study-mixing check
+            // itself is already enforced inside MoveSpecimenAsync via
+            // ValidateAndAssignBoxStudyAsync.
+            if (!await _studyAccessService.CanEditAsync(userId, specimen.StudyID))
+            {
+                ModelState.AddModelError(string.Empty, "You do not have permission to move specimens in this study.");
+                FoundSpecimen = specimen;
+                await LoadBoxOptionsAsync(userId);
+                return Page();
+            }
 
             if (MoveToTemp)
             {
-                await _storageService.MoveToTempAsync(SpecimenId.Value, userId);
+                try
+                {
+                    await _storageService.MoveToTempAsync(SpecimenId.Value, userId);
+                }
+                catch (InvalidOperationException ex)
+                {
+                    // Thrown by IStorageService.ValidateAndAssignBoxStudyAsync (via
+                    // MoveToTempAsync) when the shared Temp box already holds a different
+                    // study's specimens -- same pattern as the MoveSpecimenAsync catch below.
+                    ModelState.AddModelError(string.Empty, ex.Message);
+                    FoundSpecimen = specimen;
+                    await LoadBoxOptionsAsync(userId);
+                    return Page();
+                }
+
                 TempData["Success"] = "Specimen moved to temporary storage.";
                 return RedirectToPage();
             }
@@ -76,8 +140,18 @@ namespace STASIS.Pages.Boxes
             catch (DbUpdateException)
             {
                 ModelState.AddModelError(string.Empty, "That position is already occupied.");
-                FoundSpecimen = await _sampleService.GetSpecimenByBarcode(Barcode ?? "");
-                await LoadBoxOptionsAsync();
+                FoundSpecimen = specimen;
+                await LoadBoxOptionsAsync(userId);
+                return Page();
+            }
+            catch (InvalidOperationException ex)
+            {
+                // Thrown by IStorageService.ValidateAndAssignBoxStudyAsync (via
+                // MoveSpecimenAsync) when the destination box already holds a different
+                // study's specimens -- same pattern as Samples/Add.
+                ModelState.AddModelError(string.Empty, ex.Message);
+                FoundSpecimen = specimen;
+                await LoadBoxOptionsAsync(userId);
                 return Page();
             }
 
@@ -85,30 +159,27 @@ namespace STASIS.Pages.Boxes
             return RedirectToPage();
         }
 
-        private async Task LoadBoxOptionsAsync()
+        // Box dropdown: filtered via the caller's own GetVisibleStudyIdsAsync set (not a
+        // separately-built "editable only" set -- there's no bulk editable-study-ids method on
+        // IStudyAccessService; see Pages/Samples/Add.cshtml.cs/Import.cshtml.cs for the
+        // established per-study-CanEditAsync-loop pattern used where that distinction matters).
+        // This list is a UX convenience, not the security boundary: the real edit gate is the
+        // CanEditAsync check in OnPostMoveAsync against the specimen's own study, and
+        // ValidateAndAssignBoxStudyAsync (inside MoveSpecimenAsync) independently enforces that a
+        // box never mixes studies. Replaces the previous unfiltered manual
+        // freezer/compartment/rack/box nested loop with Task 10's filtered
+        // IStorageService.GetAllBoxesAsync.
+        private async Task LoadBoxOptionsAsync(string userId)
         {
-            var freezers = await _storageService.GetAllFreezers();
-            var allBoxes = new List<Box>();
-            foreach (var f in freezers)
-            {
-                var compartments = await _storageService.GetCompartmentsByFreezer(f.FreezerID);
-                foreach (var c in compartments)
-                {
-                    c.Freezer = f;
-                    var racks = await _storageService.GetRacksByCompartment(c.CompartmentID);
-                    foreach (var r in racks)
-                    {
-                        r.Compartment = c;
-                        var boxes = await _storageService.GetBoxesByRack(r.RackID);
-                        foreach (var b in boxes) { b.Rack = r; }
-                        allBoxes.AddRange(boxes);
-                    }
-                }
-            }
+            var isSystemAdmin = await _studyAccessService.IsSystemAdminAsync(userId);
+            var visibleStudyIds = isSystemAdmin ? null : await _studyAccessService.GetVisibleStudyIdsAsync(userId);
+            var allBoxes = await _storageService.GetAllBoxesAsync(visibleStudyIds);
             BoxOptions = new SelectList(
-                allBoxes.OrderBy(b => b.BoxLabel).Select(b => new {
+                allBoxes.Select(b => new {
                     b.BoxID,
-                    Display = $"{b.BoxLabel} ({b.Rack?.Compartment?.Freezer?.FreezerName} > {b.Rack?.Compartment?.CompartmentName} > {b.Rack?.RackName})"
+                    Display = b.Rack != null
+                        ? $"{b.BoxLabel} ({b.Rack.Compartment?.Freezer?.FreezerName} > {b.Rack.Compartment?.CompartmentName} > {b.Rack.RackName})"
+                        : $"{b.BoxLabel} (unassigned)"
                 }), "BoxID", "Display");
         }
     }

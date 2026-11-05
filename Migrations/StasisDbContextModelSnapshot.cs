@@ -379,12 +379,17 @@ namespace STASIS.Migrations
                     b.Property<int?>("RackID")
                         .HasColumnType("integer");
 
+                    b.Property<int?>("StudyID")
+                        .HasColumnType("integer");
+
                     b.HasKey("BoxID");
 
                     b.HasIndex("BoxLabel")
                         .IsUnique();
 
                     b.HasIndex("RackID");
+
+                    b.HasIndex("StudyID");
 
                     b.ToTable("tbl_Boxes", null, t =>
                         {
@@ -628,6 +633,9 @@ namespace STASIS.Migrations
                     b.Property<int>("TotalDiscarded")
                         .HasColumnType("integer");
 
+                    b.Property<int>("TotalNoAccess")
+                        .HasColumnType("integer");
+
                     b.Property<int>("TotalNotFound")
                         .HasColumnType("integer");
 
@@ -727,7 +735,7 @@ namespace STASIS.Migrations
 
                     b.ToTable("tbl_ShipmentRequests", null, t =>
                         {
-                            t.HasCheckConstraint("CK_ShipmentRequests_Status", "\"Status\" IN ('Pending', 'Staged', 'Shipped', 'Not Found', 'Previously Shipped', 'Discarded', 'Not Yet Received')");
+                            t.HasCheckConstraint("CK_ShipmentRequests_Status", "\"Status\" IN ('Pending', 'Staged', 'Shipped', 'Not Found', 'Previously Shipped', 'Discarded', 'Not Yet Received', 'No Access')");
                         });
                 });
 
@@ -792,16 +800,13 @@ namespace STASIS.Migrations
                         .HasColumnType("text")
                         .HasDefaultValue("In-Stock");
 
-                    b.Property<int?>("StudyID")
+                    b.Property<int>("StudyID")
                         .HasColumnType("integer");
 
                     b.Property<int?>("VisitTypeID")
                         .HasColumnType("integer");
 
                     b.HasKey("SpecimenID");
-
-                    b.HasIndex("BarcodeID")
-                        .IsUnique();
 
                     b.HasIndex("DiscardApprovalID");
 
@@ -815,6 +820,9 @@ namespace STASIS.Migrations
                     b.HasIndex("StudyID");
 
                     b.HasIndex("VisitTypeID");
+
+                    b.HasIndex("StudyID", "BarcodeID")
+                        .IsUnique();
 
                     b.HasIndex("BoxID", "PositionRow", "PositionCol")
                         .IsUnique();
@@ -883,6 +891,49 @@ namespace STASIS.Migrations
                         .IsUnique();
 
                     b.ToTable("tbl_UserProfiles", (string)null);
+                });
+
+            modelBuilder.Entity("STASIS.Models.UserStudyAccess", b =>
+                {
+                    b.Property<int>("UserStudyAccessID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("UserStudyAccessID"));
+
+                    b.Property<string>("AspNetUserId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("GrantedByUserId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("GrantedDate")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("StudyID")
+                        .HasColumnType("integer");
+
+                    b.HasKey("UserStudyAccessID");
+
+                    b.HasIndex("GrantedByUserId");
+
+                    b.HasIndex("StudyID");
+
+                    b.HasIndex("AspNetUserId", "StudyID")
+                        .IsUnique();
+
+                    b.ToTable("tbl_UserStudyAccess", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_UserStudyAccess_Role", "\"Role\" IN ('Viewer', 'Editor', 'StudyAdmin')");
+                        });
                 });
 
             modelBuilder.Entity("STASIS.Models.VisitType", b =>
@@ -1004,7 +1055,14 @@ namespace STASIS.Migrations
                         .WithMany("Boxes")
                         .HasForeignKey("RackID");
 
+                    b.HasOne("STASIS.Models.Study", "Study")
+                        .WithMany()
+                        .HasForeignKey("StudyID")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.Navigation("Rack");
+
+                    b.Navigation("Study");
                 });
 
             modelBuilder.Entity("STASIS.Models.Compartment", b =>
@@ -1154,7 +1212,9 @@ namespace STASIS.Migrations
 
                     b.HasOne("STASIS.Models.Study", "Study")
                         .WithMany("Specimens")
-                        .HasForeignKey("StudyID");
+                        .HasForeignKey("StudyID")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
 
                     b.HasOne("STASIS.Models.VisitType", "VisitType")
                         .WithMany("Specimens")
@@ -1179,6 +1239,33 @@ namespace STASIS.Migrations
                         .HasForeignKey("AspNetUserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("STASIS.Models.UserStudyAccess", b =>
+                {
+                    b.HasOne("Microsoft.AspNetCore.Identity.IdentityUser", "User")
+                        .WithMany()
+                        .HasForeignKey("AspNetUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Microsoft.AspNetCore.Identity.IdentityUser", "GrantedByUser")
+                        .WithMany()
+                        .HasForeignKey("GrantedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("STASIS.Models.Study", "Study")
+                        .WithMany()
+                        .HasForeignKey("StudyID")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("GrantedByUser");
+
+                    b.Navigation("Study");
 
                     b.Navigation("User");
                 });

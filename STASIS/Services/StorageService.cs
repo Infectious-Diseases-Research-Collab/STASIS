@@ -41,43 +41,45 @@ public class StorageService : IStorageService
         return await _context.Boxes.Where(b => b.RackID == rackId).ToListAsync();
     }
 
-    public async Task<Box?> GetBoxWithSpecimens(int boxId)
+    public async Task<Box?> GetBoxWithSpecimens(int boxId, IReadOnlyCollection<int>? visibleStudyIds)
     {
-        return await _context.Boxes
+        var query = ApplyStudyVisibility(_context.Boxes.AsQueryable(), visibleStudyIds)
             .Include(b => b.Rack)
             .ThenInclude(r => r!.Compartment)
             .ThenInclude(c => c!.Freezer)
             .Include(b => b.Specimens)
-            .ThenInclude(s => s.SampleType)
-            .FirstOrDefaultAsync(b => b.BoxID == boxId);
+            .ThenInclude(s => s.SampleType);
+
+        return await query.FirstOrDefaultAsync(b => b.BoxID == boxId);
     }
 
-    public async Task<List<Box>> GetAllBoxesAsync()
+    public async Task<List<Box>> GetAllBoxesAsync(IReadOnlyCollection<int>? visibleStudyIds)
     {
-        return await _context.Boxes
+        var query = ApplyStudyVisibility(_context.Boxes.AsQueryable(), visibleStudyIds)
             .Include(b => b.Rack)
                 .ThenInclude(r => r!.Compartment)
-                    .ThenInclude(c => c!.Freezer)
-            .OrderBy(b => b.BoxLabel)
-            .ToListAsync();
+                    .ThenInclude(c => c!.Freezer);
+
+        return await query.OrderBy(b => b.BoxLabel).ToListAsync();
     }
 
-    public async Task<List<string>> GetAllBoxLabelsAsync()
+    public async Task<List<string>> GetAllBoxLabelsAsync(IReadOnlyCollection<int>? visibleStudyIds)
     {
-        return await _context.Boxes
+        var query = ApplyStudyVisibility(_context.Boxes.AsQueryable(), visibleStudyIds);
+
+        return await query
             .OrderBy(b => b.BoxLabel)
             .Select(b => b.BoxLabel)
             .ToListAsync();
     }
 
-    public async Task<List<Box>> SearchBoxesAsync(string? label, int? freezerId, int? rackId)
+    public async Task<List<Box>> SearchBoxesAsync(string? label, int? freezerId, int? rackId, IReadOnlyCollection<int>? visibleStudyIds)
     {
-        var query = _context.Boxes
+        IQueryable<Box> query = ApplyStudyVisibility(_context.Boxes.AsQueryable(), visibleStudyIds)
             .Include(b => b.Rack)
             .ThenInclude(r => r!.Compartment)
             .ThenInclude(c => c!.Freezer)
-            .Include(b => b.Specimens)
-            .AsQueryable();
+            .Include(b => b.Specimens);
 
         if (!string.IsNullOrEmpty(label))
             query = query.Where(b => b.BoxLabel.Contains(label));
@@ -91,15 +93,43 @@ public class StorageService : IStorageService
         return await query.OrderBy(b => b.BoxLabel).Take(100).ToListAsync();
     }
 
-    public async Task<Box?> GetBoxByLabelAsync(string label)
+    public async Task<Box?> GetBoxByLabelAsync(string label, IReadOnlyCollection<int>? visibleStudyIds)
     {
-        return await _context.Boxes
+        var query = ApplyStudyVisibility(_context.Boxes.AsQueryable(), visibleStudyIds)
             .Include(b => b.Rack)
             .ThenInclude(r => r!.Compartment)
             .ThenInclude(c => c!.Freezer)
             .Include(b => b.Specimens)
-            .ThenInclude(s => s.SampleType)
-            .FirstOrDefaultAsync(b => b.BoxLabel == label);
+            .ThenInclude(s => s.SampleType);
+
+        return await query.FirstOrDefaultAsync(b => b.BoxLabel == label);
+    }
+
+    // visibleStudyIds: null = unrestricted (System Admin), so the query passes through
+    // unmodified. A non-null, empty collection means the caller has zero study assignments and
+    // must see zero boxes -- including unassigned ones -- so the query is short-circuited to
+    // return nothing rather than falling through to the "StudyID == null is visible" branch
+    // below (which would otherwise leak every unassigned box to a zero-access caller). A
+    // non-null, non-empty collection filters to boxes in one of those studies, plus any box not
+    // yet claimed by a study AND genuinely empty (StudyID == null && no specimens) -- a
+    // never-used box isn't yet claimed by any study, so it must stay discoverable to anyone with
+    // at least one study assignment, or it could never be placed into. A StudyID == null box
+    // that already holds specimens is NOT treated as "available to anyone": that shape only
+    // exists today because Box.StudyID was added after specimens already existed and has not
+    // been backfilled for every pre-existing box (see the BackfillBoxStudyId migration). Until a
+    // box with specimens is confirmed to belong to a single study, it is hidden from everyone
+    // except System Admin -- safe-by-default rather than leaking its contents.
+    private static IQueryable<Box> ApplyStudyVisibility(IQueryable<Box> query, IReadOnlyCollection<int>? visibleStudyIds)
+    {
+        if (visibleStudyIds == null)
+            return query;
+
+        if (visibleStudyIds.Count == 0)
+            return query.Where(_ => false);
+
+        return query.Where(b =>
+            (b.StudyID == null && !b.Specimens.Any()) ||
+            (b.StudyID != null && visibleStudyIds.Contains(b.StudyID.Value)));
     }
 
     public async Task MoveSpecimenAsync(int specimenId, int newBoxId, int row, int col, string userId)
@@ -108,6 +138,12 @@ public class StorageService : IStorageService
             .Include(s => s.Box)
             .FirstOrDefaultAsync(s => s.SpecimenID == specimenId);
         if (specimen == null) return;
+
+        // Validate (and, if the box is unclaimed, assign) the destination box's study
+        // affiliation before mutating the specimen's own fields, so a mismatch throws before
+        // anything changes and the subsequent SaveChangesAsync below persists the assignment
+        // (if any) as part of the same unit of work as the move.
+        await ValidateAndAssignBoxStudyAsync(newBoxId, specimen.StudyID);
 
         var oldBoxId = specimen.BoxID;
         var oldRow = specimen.PositionRow;
@@ -151,6 +187,12 @@ public class StorageService : IStorageService
             var specimen = await _context.Specimens.FindAsync(specimenId);
             if (specimen == null) continue;
 
+            // Validate every specimen's study against the destination box before setting any
+            // field, so a mismatch anywhere in the batch throws -- and aborts the whole method
+            // before the single SaveChangesAsync below -- rather than partially writing the
+            // batch.
+            await ValidateAndAssignBoxStudyAsync(newBoxId, specimen.StudyID);
+
             if (specimen.BoxID.HasValue)
                 oldBoxIds.Add(specimen.BoxID.Value);
 
@@ -179,6 +221,8 @@ public class StorageService : IStorageService
         var tempBox = await _context.Boxes
             .FirstOrDefaultAsync(b => b.BoxCategory == "Temp");
         if (tempBox == null) return;
+
+        await ValidateAndAssignBoxStudyAsync(tempBox.BoxID, specimen.StudyID);
 
         var oldBoxId = specimen.BoxID;
         specimen.BoxID = tempBox.BoxID;
@@ -215,11 +259,48 @@ public class StorageService : IStorageService
             .Include(b => b.Specimens)
             .FirstOrDefaultAsync(b => b.BoxID == boxId);
 
-        if (box != null && box.Specimens.Count == 0 && box.RackID != null
-            && box.BoxCategory == "Standard")
+        if (box == null || box.Specimens.Count != 0)
+            return;
+
+        if (box.RackID != null && box.BoxCategory == "Standard")
         {
             box.RackID = null;
-            await _context.SaveChangesAsync();
+        }
+
+        // Unlike the RackID clearing above, this is deliberately NOT scoped to "Standard": a
+        // Temp/Trash/Shipping box with zero specimens has no study affiliation to keep either,
+        // so it must become claimable by the next study to use it regardless of category.
+        box.StudyID = null;
+
+        await _context.SaveChangesAsync();
+    }
+
+    public async Task ValidateAndAssignBoxStudyAsync(int boxId, int studyId)
+    {
+        var box = await _context.Boxes
+            .Include(b => b.Specimens)
+            .FirstOrDefaultAsync(b => b.BoxID == boxId);
+        if (box == null)
+            return;
+
+        if (box.StudyID.HasValue && box.StudyID.Value != studyId)
+        {
+            throw new InvalidOperationException(
+                $"Box {boxId} is already assigned to study {box.StudyID.Value} and cannot also hold specimens from study {studyId}.");
+        }
+
+        if (!box.StudyID.HasValue)
+        {
+            // A null StudyID with existing specimens from a different study is the ambiguous
+            // legacy-box case the BackfillBoxStudyId migration leaves for manual admin cleanup --
+            // must not be silently claimed for whichever study happens to come along next.
+            if (box.Specimens.Any(s => s.StudyID != studyId))
+            {
+                throw new InvalidOperationException(
+                    $"Box {boxId} already holds specimens from a different study than {studyId} and has no assigned StudyID; it needs manual cleanup before more specimens can be added.");
+            }
+
+            box.StudyID = studyId;
         }
     }
 }

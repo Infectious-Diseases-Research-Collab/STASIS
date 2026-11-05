@@ -17,7 +17,7 @@ public class ShipmentService : IShipmentService
     }
 
     public async Task<ShipmentBatch> ImportBatchFromCsvAsync(Stream csvStream, string userId,
-        string? requestorName, string? requestorEmail)
+        string? requestorName, string? requestorEmail, IReadOnlyCollection<int>? editableStudyIds)
     {
         var lines = new List<string>();
         using (var reader = new StreamReader(csvStream))
@@ -57,7 +57,7 @@ public class ShipmentService : IShipmentService
 
         var sampleTypes = await _context.SampleTypes.ToListAsync();
         int totalRequested = 0, totalAvailable = 0, totalNotFound = 0,
-            totalPreviouslyShipped = 0, totalDiscarded = 0, totalNotYetReceived = 0;
+            totalPreviouslyShipped = 0, totalDiscarded = 0, totalNotYetReceived = 0, totalNoAccess = 0;
 
         for (int i = startIndex; i < lines.Count; i++)
         {
@@ -96,6 +96,11 @@ public class ShipmentService : IShipmentService
             {
                 status = "Not Found";
                 totalNotFound++;
+            }
+            else if (editableStudyIds != null && !editableStudyIds.Contains(specimen.StudyID))
+            {
+                status = "No Access";
+                totalNoAccess++;
             }
             else if (specimen.Status == "Shipped")
             {
@@ -141,6 +146,7 @@ public class ShipmentService : IShipmentService
         batch.TotalPreviouslyShipped = totalPreviouslyShipped;
         batch.TotalDiscarded = totalDiscarded;
         batch.TotalNotYetReceived = totalNotYetReceived;
+        batch.TotalNoAccess = totalNoAccess;
 
         await _context.SaveChangesAsync();
 
@@ -151,12 +157,35 @@ public class ShipmentService : IShipmentService
         return batch;
     }
 
-    public async Task<List<ShipmentBatch>> GetAllBatchesAsync()
+    public async Task<List<ShipmentBatch>> GetAllBatchesAsync(IReadOnlyCollection<int>? visibleStudyIds = null, string? importedByUserId = null)
     {
-        return await _context.ShipmentBatches
+        var query = _context.ShipmentBatches
             .Include(b => b.ImportedByUser)
             .Include(b => b.Approval)
+            .AsQueryable();
+
+        if (visibleStudyIds != null)
+        {
+            var visible = visibleStudyIds.ToList();
+            query = query.Where(b =>
+                b.ShipmentRequests
+                    .Where(r => r.MatchedSpecimenID != null)
+                    .All(r => visible.Contains(r.MatchedSpecimen!.StudyID))
+                && (b.ShipmentRequests.Any(r => r.MatchedSpecimenID != null)
+                    || (importedByUserId != null && b.ImportedByUserId == importedByUserId)));
+        }
+
+        return await query
             .OrderByDescending(b => b.ImportDate)
+            .ToListAsync();
+    }
+
+    public async Task<List<int>> GetBatchStudyIdsAsync(int batchId)
+    {
+        return await _context.ShipmentRequests
+            .Where(r => r.BatchID == batchId && r.MatchedSpecimenID != null)
+            .Select(r => r.MatchedSpecimen!.StudyID)
+            .Distinct()
             .ToListAsync();
     }
 
@@ -262,6 +291,14 @@ public class ShipmentService : IShipmentService
         if (batch == null)
         {
             errors.Add("Batch not found.");
+            return errors;
+        }
+
+        // The History page only shows the Ship form for approved batches, but a direct POST must
+        // not be able to skip the approval workflow.
+        if (batch.Status != "Approved")
+        {
+            errors.Add("This batch must be approved before it can be shipped.");
             return errors;
         }
 

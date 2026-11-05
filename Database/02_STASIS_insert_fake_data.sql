@@ -1,11 +1,10 @@
 BEGIN;
 
--- Seed Identity roles expected by Program.cs and the admin UI.
+-- Seed the System Admin Identity role expected by Program.cs. Per-study access (Viewer, Editor,
+-- StudyAdmin) lives in tbl_UserStudyAccess, not in Identity roles.
 INSERT INTO "AspNetRoles" ("Id", "Name", "NormalizedName", "ConcurrencyStamp")
 VALUES
-    ('00000000-0000-0000-0000-000000000001', 'Admin', 'ADMIN', '10000000-0000-0000-0000-000000000001'),
-    ('00000000-0000-0000-0000-000000000002', 'Write', 'WRITE', '10000000-0000-0000-0000-000000000002'),
-    ('00000000-0000-0000-0000-000000000003', 'Read', 'READ', '10000000-0000-0000-0000-000000000003');
+    ('00000000-0000-0000-0000-000000000001', 'Admin', 'ADMIN', '10000000-0000-0000-0000-000000000001');
 
 INSERT INTO "tbl_Studies" ("StudyCode", "StudyName", "PrincipalInvestigator")
 VALUES

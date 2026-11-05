@@ -22,9 +22,26 @@
     </div>
 </form>
 
-@if (!string.IsNullOrEmpty(Model.Barcode) && Model.FoundSpecimen == null)
+@if (!string.IsNullOrEmpty(Model.Barcode) && Model.FoundSpecimen == null && !Model.AmbiguousSpecimens.Any())
 {
     <div class="alert alert-warning">Specimen with barcode "@Model.Barcode" not found.</div>
+}
+
+@if (Model.AmbiguousSpecimens.Any())
+{
+    <div class="alert alert-info">
+        Barcode <strong>@Model.Barcode</strong> exists in multiple studies. Select the specimen to move:
+    </div>
+    <div class="list-group mb-4" style="max-width:600px;">
+        @foreach (var s in Model.AmbiguousSpecimens)
+        {
+            <a asp-page="/Boxes/Move" asp-route-Barcode="@Model.Barcode" asp-route-SpecimenId="@s.SpecimenID"
+               class="list-group-item list-group-item-action">
+                <strong>@s.BarcodeID</strong> — @(s.Study?.StudyCode ?? "No Study") |
+                @(s.SampleType?.TypeName ?? "-") | Status: @s.Status
+            </a>
+        }
+    </div>
 }
 
 @if (Model.FoundSpecimen != null)

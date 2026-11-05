@@ -10,7 +10,7 @@ builder.Services.AddDbContext<StasisDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
 builder.Services.AddDefaultIdentity<IdentityUser>(options => {
-    options.SignIn.RequireConfirmedAccount = true; 
+    options.SignIn.RequireConfirmedAccount = true;
     options.Password.RequireDigit = true;
     options.Password.RequireLowercase = true;
     options.Password.RequireNonAlphanumeric = true;
@@ -19,6 +19,23 @@ builder.Services.AddDefaultIdentity<IdentityUser>(options => {
 })
     .AddRoles<IdentityRole>()
     .AddEntityFrameworkStores<StasisDbContext>();
+
+// ASP.NET Core Identity's cookie auth bakes the signed-in user's role claims (e.g. "Admin") into
+// the encrypted auth cookie at sign-in time. By default, SecurityStampValidator only re-checks
+// that cookie against the database (and refreshes the principal's claims if anything changed)
+// every 30 minutes -- IdentityOptions in this ASP.NET Core version has no
+// SecurityStampValidationInterval property of its own, so this is configured via
+// SecurityStampValidatorOptions directly. Without this, revoking a user's System Admin role (or
+// any other role-claim-based access) does not actually take effect until that interval elapses
+// or the user logs in again -- confirmed empirically against this exact app (a System Admin
+// stripped of the "Admin" role mid-session kept getting 200 OK from an
+// [Authorize(Roles = "Admin")]-gated page on the very next request, using the same cookie, with
+// the default interval). Setting this to zero forces re-validation (and a fresh principal/claims
+// pull from the database) on every single request.
+builder.Services.Configure<SecurityStampValidatorOptions>(options =>
+{
+    options.ValidationInterval = TimeSpan.Zero;
+});
 
 // Email Configuration
 builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("EmailSettings"));
@@ -29,6 +46,7 @@ builder.Services.AddScoped<IStorageService, StorageService>();
 builder.Services.AddScoped<IAuditService, AuditService>();
 builder.Services.AddScoped<ILabSetupService, LabSetupService>();
 builder.Services.AddScoped<IShipmentService, ShipmentService>();
+builder.Services.AddScoped<IStudyAccessService, StudyAccessService>();
 
 builder.Services.AddRazorPages()
     .AddMvcOptions(options =>
@@ -82,7 +100,7 @@ using (var scope = app.Services.CreateScope())
         var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
 
         // Ensure all roles exist
-        foreach (var role in new[] { "Admin", "Write", "Read" })
+        foreach (var role in new[] { "Admin" })
         {
             if (!await roleManager.RoleExistsAsync(role))
                 await roleManager.CreateAsync(new IdentityRole(role));
@@ -104,3 +122,8 @@ using (var scope = app.Services.CreateScope())
 }
 
 app.Run();
+
+// Exposes the implicit Program class generated for this top-level-statements file so that
+// WebApplicationFactory<Program> (used by STASIS.Tests' TestWebApplicationFactory) can
+// reference it from the test project.
+public partial class Program { }

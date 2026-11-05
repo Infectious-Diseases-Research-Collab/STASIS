@@ -14,7 +14,7 @@
         <thead>
             <tr>
                 <th>Email / Username</th>
-                <th>Roles</th>
+                <th>Study Access</th>
                 <th>Department</th>
                 <th>Actions</th>
             </tr>
@@ -24,7 +24,16 @@
             {
                 <tr>
                     <td>@user.Email</td>
-                    <td>@user.Roles</td>
+                    <td>
+                        @if (user.StudyAccess.Count > 0)
+                        {
+                            @string.Join(", ", user.StudyAccess.Select(a => $"{a.StudyCode}: {a.Role}"))
+                        }
+                        else
+                        {
+                            <span class="text-muted">&mdash;</span>
+                        }
+                    </td>
                     <td>@user.Department</td>
                     <td>
                         <a asp-page="./EditUser" asp-route-id="@user.UserId" class="btn btn-sm btn-outline-secondary">Edit</a>

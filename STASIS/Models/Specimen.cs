@@ -6,8 +6,8 @@ public class Specimen
     public string BarcodeID { get; set; } = string.Empty;
     public string? LegacyID { get; set; }
     public string? ParticipantID { get; set; }
-    public int? StudyID { get; set; }
-    public Study? Study { get; set; }
+    public int StudyID { get; set; }
+    public Study Study { get; set; } = null!;
     public int? VisitTypeID { get; set; }
     public VisitType? VisitType { get; set; }
     public int? SampleTypeID { get; set; }
