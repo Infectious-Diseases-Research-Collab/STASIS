@@ -59,6 +59,7 @@
                            asp-route-boxLabel="@Model.BoxLabel"
                            asp-route-freezerId="@Model.FreezerId"
                            asp-route-selectedBoxId="@box.BoxID"
+                           asp-fragment="box-detail"
                            class="btn btn-sm btn-outline-primary">View</a>
                     </td>
                 </tr>
@@ -70,16 +71,14 @@
 @if (Model.SelectedBox != null)
 {
     var box = Model.SelectedBox;
+    var isLinear = Model.IsLinear(box);
     var gridSize = Model.GetGridSize(box);
-    var specimenMap = box.Specimens
-        .Where(s => s.PositionRow.HasValue && s.PositionCol.HasValue)
-        .ToDictionary(s => (s.PositionRow!.Value, s.PositionCol!.Value));
 
     <hr />
-    <h4>@box.BoxLabel <small class="text-muted">(@box.BoxType, @box.BoxCategory)</small></h4>
+    <h4 id="box-detail">@box.BoxLabel <small class="text-muted">(@box.BoxType, @box.BoxCategory)</small></h4>
     <p>
         Location: @(box.Rack?.Compartment?.Freezer?.FreezerName ?? "Unassigned") &gt; @(box.Rack?.Compartment?.CompartmentName ?? "Unassigned") &gt; @(box.Rack?.RackName ?? "Unassigned")
-        | Occupied: @box.Specimens.Count / @(gridSize * gridSize)
+        | Occupied: @box.Specimens.Count / @Model.GetCapacity(box)
     </p>
 
     <div class="mb-2">
@@ -89,46 +88,80 @@
         <span class="badge bg-info">&nbsp;</span> Temp
     </div>
 
-    <table class="table table-bordered" style="table-layout:fixed; max-width:@(gridSize * 50)px;">
-        <thead>
-            <tr>
-                <th style="width:30px;"></th>
-                @for (int c = 1; c <= gridSize; c++)
-                {
-                    <th class="text-center" style="width:40px;">@c</th>
-                }
-            </tr>
-        </thead>
-        <tbody>
-            @for (int r = 1; r <= gridSize; r++)
+    @if (isLinear)
+    {
+        // Binder slots are keyed on PositionRow alone: new specimens get a null PositionCol,
+        // while legacy imports carry assorted column values that don't mean anything here.
+        var slotMap = box.Specimens
+            .Where(s => s.PositionRow.HasValue)
+            .GroupBy(s => s.PositionRow!.Value)
+            .ToDictionary(g => g.Key, g => g.First());
+        var slotCount = Model.GetLinearSlotCount(box);
+
+        <div class="d-flex flex-wrap gap-1 mb-3" style="max-width:@(10 * 74)px;">
+            @for (int slot = 1; slot <= slotCount; slot++)
             {
+                if (slotMap.TryGetValue(slot, out var specimen))
+                {
+                    <div class="text-center small border rounded @SearchModel.GetStatusClass(specimen.Status)"
+                         title="Slot @slot: @specimen.BarcodeID (@specimen.SampleType?.TypeName) — @specimen.Status"
+                         style="width:70px; font-size:0.7em; padding:2px;">
+                        <div class="fw-bold">@slot</div>
+                        @specimen.BarcodeID[^(Math.Min(6, specimen.BarcodeID.Length))..]
+                    </div>
+                }
+                else
+                {
+                    <div class="text-center border rounded bg-light text-muted" title="Slot @slot: empty"
+                         style="width:70px; font-size:0.7em; padding:2px;">
+                        <div class="fw-bold">@slot</div>
+                        —
+                    </div>
+                }
+            }
+        </div>
+    }
+    else
+    {
+        var specimenMap = box.Specimens
+            .Where(s => s.PositionRow.HasValue && s.PositionCol.HasValue)
+            .ToDictionary(s => (s.PositionRow!.Value, s.PositionCol!.Value));
+
+        <table class="table table-bordered" style="table-layout:fixed; max-width:@(gridSize * 50)px;">
+            <thead>
                 <tr>
-                    <td class="text-center fw-bold">@r</td>
+                    <th style="width:30px;"></th>
                     @for (int c = 1; c <= gridSize; c++)
                     {
-                        var key = (r, c);
-                        if (specimenMap.TryGetValue(key, out var specimen))
-                        {
-                            var bgClass = specimen.Status switch
-                            {
-                                "Staged" => "bg-warning text-dark",
-                                "Temp" => "bg-info text-dark",
-                                _ => "bg-success text-white"
-                            };
-                            <td class="text-center small @bgClass" title="@specimen.BarcodeID (@specimen.SampleType?.TypeName) — @specimen.Status"
-                                style="cursor:pointer; font-size:0.7em; padding:2px;">
-                                @specimen.BarcodeID[^(Math.Min(6, specimen.BarcodeID.Length))..]
-                            </td>
-                        }
-                        else
-                        {
-                            <td class="text-center bg-light text-muted" style="font-size:0.7em; padding:2px;">—</td>
-                        }
+                        <th class="text-center" style="width:40px;">@c</th>
                     }
                 </tr>
-            }
-        </tbody>
-    </table>
+            </thead>
+            <tbody>
+                @for (int r = 1; r <= gridSize; r++)
+                {
+                    <tr>
+                        <td class="text-center fw-bold">@r</td>
+                        @for (int c = 1; c <= gridSize; c++)
+                        {
+                            var key = (r, c);
+                            if (specimenMap.TryGetValue(key, out var specimen))
+                            {
+                                <td class="text-center small @SearchModel.GetStatusClass(specimen.Status)" title="@specimen.BarcodeID (@specimen.SampleType?.TypeName) — @specimen.Status"
+                                    style="cursor:pointer; font-size:0.7em; padding:2px;">
+                                    @specimen.BarcodeID[^(Math.Min(6, specimen.BarcodeID.Length))..]
+                                </td>
+                            }
+                            else
+                            {
+                                <td class="text-center bg-light text-muted" style="font-size:0.7em; padding:2px;">—</td>
+                            }
+                        }
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
 
     @if (box.Specimens.Any())
     {
@@ -148,7 +181,7 @@
                     <tr>
                         <td>@s.BarcodeID</td>
                         <td>@(s.SampleType?.TypeName ?? "-")</td>
-                        <td>@(s.PositionRow.HasValue ? $"({s.PositionRow},{s.PositionCol})" : "-")</td>
+                        <td>@(!s.PositionRow.HasValue ? "-" : isLinear ? $"Slot {s.PositionRow}" : $"({s.PositionRow},{s.PositionCol})")</td>
                         <td>@s.Status</td>
                     </tr>
                 }

@@ -63,6 +63,11 @@ namespace STASIS.Pages.Boxes
             }
         }
 
+        // Filter Paper Binders are linear (one slot per PositionRow, see
+        // SampleService.GetNextAvailablePosition), so they render as a numbered slot list
+        // rather than a square grid.
+        public bool IsLinear(Box box) => box.BoxType == "Filter Paper Binder";
+
         public int GetGridSize(Box box)
         {
             return box.BoxType switch
@@ -72,5 +77,23 @@ namespace STASIS.Pages.Boxes
                 _ => 9
             };
         }
+
+        // A binder nominally holds 100 slots, but legacy imported binders go past that, so the
+        // slot list grows to the highest occupied row instead of hiding those specimens.
+        public int GetLinearSlotCount(Box box)
+        {
+            var maxRow = box.Specimens.Max(s => s.PositionRow) ?? 0;
+            return Math.Max(100, maxRow);
+        }
+
+        public int GetCapacity(Box box) =>
+            IsLinear(box) ? GetLinearSlotCount(box) : GetGridSize(box) * GetGridSize(box);
+
+        public static string GetStatusClass(string? status) => status switch
+        {
+            "Staged" => "bg-warning text-dark",
+            "Temp" => "bg-info text-dark",
+            _ => "bg-success text-white"
+        };
     }
 }
