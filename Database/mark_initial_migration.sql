@@ -4,5 +4,7 @@ CREATE TABLE IF NOT EXISTS "__EFMigrationsHistory" (
     CONSTRAINT "PK___EFMigrationsHistory" PRIMARY KEY ("MigrationId")
 );
 INSERT INTO "__EFMigrationsHistory" ("MigrationId", "ProductVersion")
-VALUES ('20260303031801_InitialCreate', '10.0.1')
+VALUES
+    ('20260408121640_InitialCreate', '10.0.1'),
+    ('20260410093423_AddVisitTypes', '10.0.1')
 ON CONFLICT DO NOTHING;

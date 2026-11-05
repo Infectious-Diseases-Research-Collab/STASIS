@@ -61,3 +61,6 @@ nunit-*.xml
 
 # Git worktrees
 .worktrees/
+
+.DS_Store
+.vscode
