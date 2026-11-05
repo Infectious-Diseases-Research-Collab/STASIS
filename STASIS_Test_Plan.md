@@ -116,6 +116,8 @@
 - [ ] **TC-USR-12:** Reset a user's password — verify success message.
 - [ ] **TC-USR-13:** After reset, log in as that user — verify they are forced to change their password (`MustChangePassword` is set to true).
 - [ ] **TC-USR-14:** Verify an audit entry is created for the password reset.
+- [ ] **TC-USR-14a:** Reset with a weak password (e.g. `abc`) — verify you stay on Edit User with an error banner listing the password rules, and the user's old password still works.
+- [ ] **TC-USR-14b:** On the login page, verify there is no "Forgot your password?" link, only the "contact a STASIS administrator" note, and that `/Identity/Account/ForgotPassword` and `/Identity/Account/ResetPassword` return 404. Self-service resets are turned off; System Admins reset passwords.
 
 ---
 

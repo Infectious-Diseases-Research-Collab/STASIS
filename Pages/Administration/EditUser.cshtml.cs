@@ -172,27 +172,31 @@ namespace STASIS.Pages.Administration
             var token = await _userManager.GeneratePasswordResetTokenAsync(user);
             var result = await _userManager.ResetPasswordAsync(user, token, newPassword);
 
-            if (result.Succeeded)
+            // Redirect back to this user's page either way (PRG, like the study-access handlers),
+            // so the page reloads with its data and the message shows in the TempData banner.
+            if (!result.Succeeded)
             {
-                var profile = await _context.UserProfiles.FirstOrDefaultAsync(p => p.AspNetUserId == user.Id);
-                if (profile != null)
-                {
-                    profile.MustChangePassword = true;
-                    await _context.SaveChangesAsync();
-                }
-
-                await _auditService.LogChangeAsync("AspNetUsers", user.Id,
-                    "PasswordReset", null, "Password reset by admin", currentUserId);
-
-                return RedirectToPage("./Users");
+                TempData["Error"] = "Password not reset. " +
+                    string.Join(" ", result.Errors.Select(e => e.Description));
+                return RedirectToPage(new { id });
             }
 
-            foreach (var error in result.Errors)
+            // Always force a change at next login. Users without a profile row (e.g. the seeded
+            // admin) get one created, otherwise PasswordChangeFilter would never prompt them.
+            var profile = await _context.UserProfiles.FirstOrDefaultAsync(p => p.AspNetUserId == user.Id);
+            if (profile == null)
             {
-                ModelState.AddModelError(string.Empty, error.Description);
+                profile = new UserProfile { AspNetUserId = user.Id };
+                _context.UserProfiles.Add(profile);
             }
+            profile.MustChangePassword = true;
+            await _context.SaveChangesAsync();
 
-            return Page();
+            await _auditService.LogChangeAsync("AspNetUsers", user.Id,
+                "PasswordReset", null, "Password reset by admin", currentUserId);
+
+            TempData["Success"] = $"Password reset for {user.Email}. They'll have to change it at next login.";
+            return RedirectToPage(new { id });
         }
 
         // Grants the target user a new role on a study. Rejected server-side (IDOR guard,

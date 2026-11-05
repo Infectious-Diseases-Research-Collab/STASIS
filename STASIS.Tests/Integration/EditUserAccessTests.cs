@@ -428,4 +428,110 @@ public class EditUserAccessTests : IClassFixture<TestWebApplicationFactory>, IAs
         var refreshedUser = await userManager.FindByIdAsync(targetUser.Id);
         Assert.Equal(originalPasswordHash, refreshedUser!.PasswordHash);
     }
+
+    // A rejected password used to return Page() without reloading the page's data, so the view
+    // rendered as a non-System-Admin with an empty user and the validation errors (which sit
+    // inside the System-Admin-only block) never showed.
+    [Fact]
+    public async Task ResetPassword_WeakPassword_RedirectsBackToEditUser_WithErrors_PasswordUnchanged()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var services = scope.ServiceProvider;
+        var userManager = services.GetRequiredService<UserManager<IdentityUser>>();
+
+        var sysAdmin = await CreateSystemAdminAsync(services, "sysadmin11@test.com");
+        var targetUser = new IdentityUser { UserName = "target11@test.com", Email = "target11@test.com" };
+        await userManager.CreateAsync(targetUser, "OldPassw0rd!");
+        var originalPasswordHash = targetUser.PasswordHash;
+
+        var model = BuildPageModel(services, sysAdmin.Id);
+
+        var result = await model.OnPostResetPasswordAsync(targetUser.Id, "abc");
+
+        var redirect = Assert.IsType<RedirectToPageResult>(result);
+        Assert.Null(redirect.PageName);
+        Assert.Equal(targetUser.Id, redirect.RouteValues!["id"]);
+        var error = Assert.IsType<string>(model.TempData["Error"]);
+        Assert.Contains("at least 6 characters", error);
+
+        var refreshedUser = await userManager.FindByIdAsync(targetUser.Id);
+        Assert.Equal(originalPasswordHash, refreshedUser!.PasswordHash);
+    }
+
+    [Fact]
+    public async Task ResetPassword_Succeeds_RedirectsBackToEditUser_WithSuccessMessage_AndAuditEntry()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var services = scope.ServiceProvider;
+        var context = services.GetRequiredService<StasisDbContext>();
+        var userManager = services.GetRequiredService<UserManager<IdentityUser>>();
+
+        var sysAdmin = await CreateSystemAdminAsync(services, "sysadmin12@test.com");
+        var targetUser = new IdentityUser { UserName = "target12@test.com", Email = "target12@test.com" };
+        await userManager.CreateAsync(targetUser, "OldPassw0rd!");
+
+        var model = BuildPageModel(services, sysAdmin.Id);
+
+        var result = await model.OnPostResetPasswordAsync(targetUser.Id, "NewPassw0rd!");
+
+        var redirect = Assert.IsType<RedirectToPageResult>(result);
+        Assert.Null(redirect.PageName);
+        Assert.Equal(targetUser.Id, redirect.RouteValues!["id"]);
+        Assert.NotNull(model.TempData["Success"]);
+
+        var refreshedUser = await userManager.FindByIdAsync(targetUser.Id);
+        Assert.True(await userManager.CheckPasswordAsync(refreshedUser!, "NewPassw0rd!"));
+
+        var auditEntryExists = await context.AuditLogs.AsNoTracking()
+            .AnyAsync(a => a.TableName == "AspNetUsers" && a.FieldName == "PasswordReset" && a.ChangedByUserId == sysAdmin.Id);
+        Assert.True(auditEntryExists);
+    }
+
+    // Users without a tbl_UserProfiles row (e.g. the seeded admin@stasis.com) used to keep the
+    // temporary password indefinitely, because MustChangePassword was only set on an existing row.
+    [Fact]
+    public async Task ResetPassword_UserWithoutProfile_CreatesProfile_AndForcesPasswordChange()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var services = scope.ServiceProvider;
+        var context = services.GetRequiredService<StasisDbContext>();
+        var userManager = services.GetRequiredService<UserManager<IdentityUser>>();
+
+        var sysAdmin = await CreateSystemAdminAsync(services, "sysadmin13@test.com");
+        var targetUser = new IdentityUser { UserName = "target13@test.com", Email = "target13@test.com" };
+        await userManager.CreateAsync(targetUser, "OldPassw0rd!");
+        Assert.False(await context.UserProfiles.AnyAsync(p => p.AspNetUserId == targetUser.Id));
+
+        var model = BuildPageModel(services, sysAdmin.Id);
+
+        await model.OnPostResetPasswordAsync(targetUser.Id, "NewPassw0rd!");
+
+        var profile = await context.UserProfiles.AsNoTracking()
+            .SingleAsync(p => p.AspNetUserId == targetUser.Id);
+        Assert.True(profile.MustChangePassword);
+    }
+
+    [Fact]
+    public async Task ResetPassword_UserWithProfile_SetsMustChangePassword()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var services = scope.ServiceProvider;
+        var context = services.GetRequiredService<StasisDbContext>();
+        var userManager = services.GetRequiredService<UserManager<IdentityUser>>();
+
+        var sysAdmin = await CreateSystemAdminAsync(services, "sysadmin14@test.com");
+        var targetUser = new IdentityUser { UserName = "target14@test.com", Email = "target14@test.com" };
+        await userManager.CreateAsync(targetUser, "OldPassw0rd!");
+        context.UserProfiles.Add(new UserProfile { AspNetUserId = targetUser.Id, Department = "Lab", MustChangePassword = false });
+        await context.SaveChangesAsync();
+
+        var model = BuildPageModel(services, sysAdmin.Id);
+
+        await model.OnPostResetPasswordAsync(targetUser.Id, "NewPassw0rd!");
+
+        var profile = await context.UserProfiles.AsNoTracking()
+            .SingleAsync(p => p.AspNetUserId == targetUser.Id);
+        Assert.True(profile.MustChangePassword);
+        Assert.Equal("Lab", profile.Department);
+    }
 }
